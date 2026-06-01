@@ -10,7 +10,7 @@ function eur(v: number) {
 }
 
 function formatDateSl(d: Date) {
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
 
 async function loadTemplate(basePath: string): Promise<ArrayBuffer> {
@@ -90,7 +90,7 @@ export async function generateDocx(
   const isUmbrella = client.billingType === 'umbrella';
 
   // Grupiranje po stranki za umbrella
-  const prilogaSekcije: { naslov: string; vrstice: object[]; skupajDt: string; skupajDi: string }[] = [];
+  const prilogaSekcije: { naslov: string; vrstice: object[]; skupajUrDt: string; skupajUrDi: string }[] = [];
 
   if (isUmbrella) {
     const byStranka: Record<string, WorkEntry[]> = {};
@@ -102,32 +102,30 @@ export async function generateDocx(
       const dtUr = rows.filter(r => r.vrstaDela === 'Dt' && !r.jeVkljucena && !r.jePodPragom).reduce((s, r) => s + r.steviloUr, 0);
       const diUr = rows.filter(r => r.vrstaDela === 'Di' && !r.jeVkljucena && !r.jePodPragom).reduce((s, r) => s + r.steviloUr, 0);
       prilogaSekcije.push({
-        naslov: stranka,
+        naslov: stranka ?? '',
         vrstice: rows.map(e => ({
-          delo: e.delo,
+          delo: e.delo ?? '',
           datum: formatDateSl(e.datum),
-          kontakt: e.kontakt,
-          vrsta: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
-          ure: formatNum(e.steviloUr),
-          opis: e.opis,
-          opravil: e.opravil,
-          status: e.jeVkljucena ? 'Vključeno' : e.jePodPragom ? 'Pod pragom' : 'Za obračun',
+          kontakt: e.kontakt ?? '',
+          vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
+          steviloUr: formatNum(e.steviloUr),
+          opis: e.opis ?? '',
+          opravil: e.opravil ?? '',
         })),
-        skupajDt: formatNum(dtUr),
-        skupajDi: formatNum(diUr),
+        skupajUrDt: formatNum(dtUr),
+        skupajUrDi: formatNum(diUr),
       });
     }
   }
 
   const prilogaVrstice = sortedEntries.map(e => ({
-    delo: e.delo,
+    delo: e.delo ?? '',
     datum: formatDateSl(e.datum),
-    kontakt: e.kontakt,
-    vrsta: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
-    ure: formatNum(e.steviloUr),
-    opis: e.opis,
-    opravil: e.opravil,
-    status: e.jeVkljucena ? 'Vključeno' : e.jePodPragom ? 'Pod pragom' : 'Za obračun',
+    kontakt: e.kontakt ?? '',
+    vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
+    steviloUr: formatNum(e.steviloUr),
+    opis: e.opis ?? '',
+    opravil: e.opravil ?? '',
   }));
 
   doc.render({
@@ -156,19 +154,48 @@ export async function generateDocx(
     obdobjeOd: metadata.obdobjeOd ?? '',
     obdobjeDo: metadata.obdobjeDo ?? '',
 
-    // Postavke
-    postavke,
+    // Vzdrževanje vrstica
+    opisVzdrzevanja: (metadata.opisVzdrzevanja || 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme') ?? '',
+    znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
+    ddvVzdrzevanje: eur(calc.ddvVzdrzevanje),
+    vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja + calc.ddvVzdrzevanje),
+
+    // Delo tehnik vrstica
+    urDt: formatNum(calc.urDt),
+    cenaDt: eur(client.cenaDt),
+    vrednostDt: eur(calc.vrednostDt),
+    ddvDt: eur(calc.ddvDt),
+    dtZDDV: eur(calc.vrednostDt + calc.ddvDt),
+
+    // Delo inženir vrstica
+    urDi: formatNum(calc.urDi),
+    cenaDi: eur(client.cenaDi),
+    vrednostDi: eur(calc.vrednostDi),
+    ddvDi: eur(calc.ddvDi),
+    diZDDV: eur(calc.vrednostDi + calc.ddvDi),
+
+    // Delo po ponudbi vrstica
+    vrednostDp: eur(calc.vrednostDp),
+    ddvDp: eur(calc.ddvDp),
+    dpZDDV: eur(calc.vrednostDp + calc.ddvDp),
+
+    // Skupaj
     skupajBrezDDV: eur(calc.skupajBrezDDV),
     skupajDDV: eur(calc.ddv),
     skupajZDDV: eur(calc.skupajZDDV),
+    skupajZaPlacilo: eur(calc.skupajZDDV),
+
+    // Postavke (loop – za nazaj kompatibilnost)
+    postavke,
 
     // Priloga
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
+    priloga: prilogaVrstice,
     prilogaVrstice,
     isUmbrella,
     prilogaSekcije,
-    skupajDt: formatNum(calc.urDt),
-    skupajDi: formatNum(calc.urDi),
+    skupajUrDt: formatNum(calc.urDt),
+    skupajUrDi: formatNum(calc.urDi),
   });
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
