@@ -46,5 +46,7 @@ export function formatNum(value: number, decimals = 2): string {
 }
 
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString('sl-SI');
+  const d = date.getDate().toString().padStart(2, '0');
+  const m = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${d}/${m}/${date.getFullYear()}`;
 }

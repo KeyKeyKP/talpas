@@ -2,7 +2,7 @@ import { ClientConfig } from '../lib/types';
 import { findClient } from '../data/clients';
 
 interface Props {
-  stranke: string[];
+  stranke: Array<{ name: string; count: number }>;
   selected: string | null;
   onSelect: (stranka: string, client: ClientConfig | undefined) => void;
 }
@@ -17,31 +17,33 @@ const BILLING_LABELS: Record<string, string> = {
 export default function ClientSelector({ stranke, selected, onSelect }: Props) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Izberi stranko za obračun</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {stranke.map(s => {
-          const client = findClient(s);
-          const isSelected = selected === s;
+      <h2 className="text-lg font-semibold text-gray-800 mb-3">Izberi stranko za obračun</h2>
+      <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+        {stranke.map(({ name, count }) => {
+          const client = findClient(name);
+          const isSelected = selected === name;
           return (
             <button
-              key={s}
-              onClick={() => onSelect(s, client)}
-              className={`text-left p-4 rounded-lg border-2 transition-all ${
+              key={name}
+              onClick={() => onSelect(name, client)}
+              className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
                 isSelected
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                  ? 'bg-blue-50 text-blue-800 font-medium'
+                  : 'hover:bg-gray-50 text-gray-700'
               }`}
             >
-              <div className="font-medium text-gray-900">{s}</div>
-              {client ? (
-                <div className="text-xs text-gray-500 mt-1">
-                  {BILLING_LABELS[client.billingType]}
-                  {client.billingType === 'included_hours' && ` · ${client.includedHours} ur/mes`}
-                  {client.billingType === 'threshold' && ` · prag ${client.thresholdHours} ur / ${client.thresholdMonths} mes`}
-                </div>
-              ) : (
-                <div className="text-xs text-orange-500 mt-1">⚠ Ni v registru – standard pravila</div>
-              )}
+              <span>
+                {name}
+                {client && (
+                  <span className="ml-2 text-xs text-gray-400 font-normal">
+                    {BILLING_LABELS[client.billingType]}
+                  </span>
+                )}
+                {!client && (
+                  <span className="ml-2 text-xs text-orange-400 font-normal">⚠ ni v registru</span>
+                )}
+              </span>
+              <span className="text-gray-400 tabular-nums">{count}</span>
             </button>
           );
         })}
@@ -50,12 +52,12 @@ export default function ClientSelector({ stranke, selected, onSelect }: Props) {
       {selected && (() => {
         const client = findClient(selected);
         if (!client) return (
-          <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700">
+          <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700">
             ⚠ Stranka <strong>{selected}</strong> ni v registru. Uporabljena bodo standardna pravila obračuna.
           </div>
         );
         return (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+          <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
             <div className="font-semibold text-blue-800 mb-1">ℹ {client.imeNaRacunu}</div>
             <div className="text-blue-700 space-y-0.5">
               <div>Tip: <strong>{BILLING_LABELS[client.billingType]}</strong></div>

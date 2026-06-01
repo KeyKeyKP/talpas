@@ -5,23 +5,24 @@ import WorkTable from './components/WorkTable';
 import InvoiceSummary from './components/InvoiceSummary';
 import InvoiceMetadataForm from './components/InvoiceMetadata';
 import ExportButton from './components/ExportButton';
-import { parseExcel, getUniqueStranke } from './lib/excelParser';
+import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+function fmtDate(d: Date) {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
+function todayStr() { return fmtDate(new Date()); }
 function addDays(days: number) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return fmtDate(d);
 }
 
 export default function App() {
   const [step, setStep] = useState(1);
   const [allEntries, setAllEntries] = useState<WorkEntry[]>([]);
-  const [stranke, setStranke] = useState<string[]>([]);
+  const [stranke, setStranke] = useState<Array<{ name: string; count: number }>>([]);
   const [selectedStranka, setSelectedStranka] = useState<string | null>(null);
   const [client, setClient] = useState<ClientConfig | undefined>();
   const [entries, setEntries] = useState<WorkEntry[]>([]);
@@ -39,7 +40,7 @@ export default function App() {
     try {
       const parsed = await parseExcel(file);
       setAllEntries(parsed);
-      setStranke(getUniqueStranke(parsed));
+      setStranke(getStrankeStats(parsed));
       setStep(2);
     } catch (e) {
       alert('Napaka pri branju datoteke: ' + String(e));
@@ -78,10 +79,24 @@ export default function App() {
 
     const withRules = applyBillingRules(filtered, cfg);
     setEntries(withRules);
+
+    const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
+    let obdobjeOd = '';
+    let obdobjeDo = '';
+    if (validDates.length) {
+      const anyDate = validDates[0];
+      const year = anyDate.getFullYear();
+      const month = anyDate.getMonth();
+      obdobjeOd = fmtDate(new Date(year, month, 1));
+      obdobjeDo = fmtDate(new Date(year, month + 1, 0));
+    }
+
     setMetadata(m => ({
       ...m,
       znesekVzdrzevanja: cfg.znesekVzdrzevanja,
       opisVzdrzevanja: cfg.opisVzdrzevanja,
+      obdobjeOd,
+      obdobjeDo,
     }));
   };
 
@@ -146,7 +161,7 @@ export default function App() {
             <ClientSelector
               stranke={stranke}
               selected={selectedStranka}
-              onSelect={handleSelectStranka}
+              onSelect={(name, cfg) => handleSelectStranka(name, cfg)}
             />
             {canProceedToStep3 && step === 2 && (
               <div className="mt-4 flex justify-end">

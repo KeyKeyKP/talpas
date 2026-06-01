@@ -24,7 +24,17 @@ export default function WorkTable({ entries, client, onChange }: Props) {
         </div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+          <colgroup>
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: showStatus ? '16%' : '18%' }} />
+            <col style={{ width: '6%' }} />
+            <col style={{ width: showStatus ? '35%' : '42%' }} />
+            <col style={{ width: '9%' }} />
+            {showStatus && <col style={{ width: '10%' }} />}
+          </colgroup>
           <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
             <tr>
               <th className="px-3 py-2 text-left">Delo</th>

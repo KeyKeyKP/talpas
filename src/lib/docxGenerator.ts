@@ -10,12 +10,12 @@ function eur(v: number) {
 }
 
 function formatDateSl(d: Date) {
-  return d.toLocaleDateString('sl-SI');
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 async function loadTemplate(basePath: string): Promise<ArrayBuffer> {
-  const res = await fetch(`${basePath}/template.docx`);
-  if (!res.ok) throw new Error(`Predloga template.docx ni najdena (${res.status}). Naloži jo v public/.`);
+  const res = await fetch(`${basePath}/assets/template_racun.docx`);
+  if (!res.ok) throw new Error(`Predloga template_racun.docx ni najdena (${res.status}). Naloži jo v public/assets/.`);
   return res.arrayBuffer();
 }
 
@@ -132,29 +132,29 @@ export async function generateDocx(
 
   doc.render({
     // Izdajatelj
-    izdajatelj_ime: IZDAJATELJ.ime,
-    izdajatelj_naslov: IZDAJATELJ.naslov,
-    izdajatelj_idDDV: IZDAJATELJ.idDDV,
-    izdajatelj_iban: IZDAJATELJ.iban,
-    izdajatelj_swift: IZDAJATELJ.swift,
-    izdajatelj_maticna: IZDAJATELJ.maticnaSt,
-    izdajatelj_email: IZDAJATELJ.email,
-    izdajatelj_web: IZDAJATELJ.web,
-    izdala: IZDAJATELJ.izdala,
+    izdajatelj_ime: IZDAJATELJ.ime ?? '',
+    izdajatelj_naslov: IZDAJATELJ.naslov ?? '',
+    izdajatelj_idDDV: IZDAJATELJ.idDDV ?? '',
+    izdajatelj_iban: IZDAJATELJ.iban ?? '',
+    izdajatelj_swift: IZDAJATELJ.swift ?? '',
+    izdajatelj_maticna: IZDAJATELJ.maticnaSt ?? '',
+    izdajatelj_email: IZDAJATELJ.email ?? '',
+    izdajatelj_web: IZDAJATELJ.web ?? '',
+    izdala: IZDAJATELJ.izdala ?? '',
 
     // Prejemnik
-    stranka_ime: client.imeNaRacunu,
-    stranka_naslov: client.naslov,
-    stranka_posta: client.posta,
-    stranka_kraj: client.kraj,
-    stranka_idDDV: client.idDDV,
+    stranka_ime: client.imeNaRacunu ?? '',
+    stranka_naslov: client.naslov ?? '',
+    stranka_posta: client.posta ?? '',
+    stranka_kraj: client.kraj ?? '',
+    stranka_idDDV: client.idDDV ?? '',
 
     // Metadata računa
-    stevilkaRacuna: metadata.stevilkaRacuna,
-    datumRacuna: metadata.datumRacuna,
-    rokPlacila: metadata.rokPlacila,
-    obdobjeOd: metadata.obdobjeOd,
-    obdobjeDo: metadata.obdobjeDo,
+    stevilkaRacuna: metadata.stevilkaRacuna ?? '',
+    datumRacuna: metadata.datumRacuna ?? '',
+    rokPlacila: metadata.rokPlacila ?? '',
+    obdobjeOd: metadata.obdobjeOd ?? '',
+    obdobjeDo: metadata.obdobjeDo ?? '',
 
     // Postavke
     postavke,
@@ -163,7 +163,7 @@ export async function generateDocx(
     skupajZDDV: eur(calc.skupajZDDV),
 
     // Priloga
-    prilogaStevilka: metadata.stevilkaRacuna,
+    prilogaStevilka: metadata.stevilkaRacuna ?? '',
     prilogaVrstice,
     isUmbrella,
     prilogaSekcije,

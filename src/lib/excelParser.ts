@@ -97,3 +97,14 @@ export function getUniqueStranke(entries: WorkEntry[]): string[] {
   }
   return result;
 }
+
+export function getStrankeStats(entries: WorkEntry[]): Array<{ name: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    const key = e.skupina || e.stranka;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}

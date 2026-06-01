@@ -20,7 +20,7 @@ export default function WorkRow({ entry, showStatus, onChange }: Props) {
 
   return (
     <tr className={`border-b border-gray-100 ${entry.jeVkljucena || entry.jePodPragom ? 'bg-gray-50' : ''}`}>
-      <td className="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">{entry.delo}</td>
+      <td className="px-3 py-2 text-sm text-gray-600 break-words">{entry.delo}</td>
       <td className="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">{formatDate(entry.datum)}</td>
       <td className="px-3 py-2 text-sm text-gray-600">{entry.kontakt}</td>
 
@@ -72,12 +72,12 @@ export default function WorkRow({ entry, showStatus, onChange }: Props) {
       </td>
 
       {/* Opis */}
-      <td className="px-3 py-2 min-w-48">
+      <td className="px-3 py-2">
         <textarea
           value={entry.opis}
           onChange={e => setField('opis', e.target.value)}
-          rows={2}
-          className="w-full text-sm border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
+          className="w-full text-sm border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none min-h-[1.75rem]"
         />
       </td>
 
