@@ -1,43 +1,79 @@
-import type { WorkEntry } from '../lib/types';
-import { WorkRow } from './WorkRow';
+import React from 'react';
+import { WorkEntry, ClientConfig } from '../lib/types';
+import WorkRow from './WorkRow';
 
 interface Props {
   entries: WorkEntry[];
-  onChange: (id: string, changes: Partial<WorkEntry>) => void;
-  onDelete: (id: string) => void;
+  client: ClientConfig | undefined;
+  onChange: (entries: WorkEntry[]) => void;
 }
 
-export function WorkTable({ entries, onChange, onDelete }: Props) {
-  const uncategorized = entries.filter(e => !e.vrstaDela).length;
+export default function WorkTable({ entries, client, onChange }: Props) {
+  const showStatus = client?.billingType === 'included_hours' || client?.billingType === 'threshold';
+  const isUmbrella = client?.billingType === 'umbrella';
 
-  return (
-    <div>
-      {uncategorized > 0 && (
-        <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-          ⚠️ {uncategorized} {uncategorized === 1 ? 'vrstica nima' : 'vrstic nima'} izbrane vrste dela (Dt / Di / V)
+  const updateEntry = (updated: WorkEntry) =>
+    onChange(entries.map(e => e.id === updated.id ? updated : e));
+
+  const uncategorized = entries.filter(e => e.vrstaDela === null).length;
+
+  const renderTable = (rows: WorkEntry[], title?: string) => (
+    <div className="mb-6">
+      {title && (
+        <div className="bg-gray-800 text-white text-sm font-semibold px-4 py-2 rounded-t-lg">
+          {title}
         </div>
       )}
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 border-b border-gray-200">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
             <tr>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">#</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Delo</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Datum</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Kontakt</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Vrsta</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Ure</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Opis</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">Opravil</th>
-              <th className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase"></th>
+              <th className="px-3 py-2 text-left">Delo</th>
+              <th className="px-3 py-2 text-left">Datum</th>
+              <th className="px-3 py-2 text-left">Kontakt</th>
+              <th className="px-3 py-2 text-left">Vrsta</th>
+              <th className="px-3 py-2 text-left">Ure</th>
+              <th className="px-3 py-2 text-left">Opis</th>
+              <th className="px-3 py-2 text-left">Opravil</th>
+              {showStatus && <th className="px-3 py-2 text-center">Status</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
-            {entries.map((entry, i) => (
-              <WorkRow key={entry.id} entry={entry} index={i} onChange={onChange} onDelete={onDelete} />
+          <tbody>
+            {rows.map(e => (
+              <WorkRow key={e.id} entry={e} showStatus={showStatus} onChange={updateEntry} />
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl shadow">
+      <div className="px-6 pt-5 pb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-800">Tabela del ({entries.length} vnosov)</h2>
+        {uncategorized > 0 && (
+          <span className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full">
+            ⚠ {uncategorized} vnosov brez kategorije
+          </span>
+        )}
+      </div>
+
+      <div className="px-6 pb-5">
+        {isUmbrella ? (
+          (() => {
+            const byStranka: Record<string, WorkEntry[]> = {};
+            for (const e of entries) {
+              if (!byStranka[e.stranka]) byStranka[e.stranka] = [];
+              byStranka[e.stranka].push(e);
+            }
+            return Object.entries(byStranka).map(([stranka, rows]) =>
+              renderTable(rows, stranka)
+            );
+          })()
+        ) : (
+          renderTable(entries)
+        )}
       </div>
     </div>
   );

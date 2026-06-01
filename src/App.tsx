@@ -1,173 +1,240 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import type { WorkEntry, InvoiceMetadata } from './lib/types';
-import { parseExcel } from './lib/excelParser';
-import { izracunaj } from './lib/calculations';
-import { generateDocx } from './lib/docxGenerator';
-import { FileUpload } from './components/FileUpload';
-import { WorkTable } from './components/WorkTable';
-import { InvoiceSummary } from './components/InvoiceSummary';
-import { InvoiceMetadataForm } from './components/InvoiceMetadata';
-import { ExportButton } from './components/ExportButton';
-import { StrankaSelector } from './components/StrankaSelector';
-import { DEFAULT_VZDRZEVANJE_OPIS, najdiStranko } from './config/constants';
+import React, { useState, useEffect } from 'react';
+import FileUpload from './components/FileUpload';
+import ClientSelector from './components/ClientSelector';
+import WorkTable from './components/WorkTable';
+import InvoiceSummary from './components/InvoiceSummary';
+import InvoiceMetadataForm from './components/InvoiceMetadata';
+import ExportButton from './components/ExportButton';
+import { parseExcel, getUniqueStranke } from './lib/excelParser';
+import { applyBillingRules } from './lib/billingEngine';
+import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
+import { findClient } from './data/clients';
 
-const today = new Date().toISOString().slice(0, 10);
-const nextMonth = new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().slice(0, 10);
-
-const DEFAULT_METADATA: InvoiceMetadata = {
-  stevilkaRacuna: '',
-  datumRacuna: today,
-  rokPlacila: nextMonth,
-  obdobjeOd: today.slice(0, 7) + '-01',
-  obdobjeDo: today,
-  znesekVzdrzevanja: 580,
-  opisVzdrzevanja: DEFAULT_VZDRZEVANJE_OPIS,
-};
-
-function sanitize(s: string): string {
-  return s.replace(/[^a-zA-Z0-9čćžšđČĆŽŠĐ_-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function addDays(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 export default function App() {
+  const [step, setStep] = useState(1);
   const [allEntries, setAllEntries] = useState<WorkEntry[]>([]);
+  const [stranke, setStranke] = useState<string[]>([]);
+  const [selectedStranka, setSelectedStranka] = useState<string | null>(null);
+  const [client, setClient] = useState<ClientConfig | undefined>();
   const [entries, setEntries] = useState<WorkEntry[]>([]);
-  const [izbranaStranka, setIzbranaStranka] = useState<string | null>(null);
-  const [metadata, setMetadata] = useState<InvoiceMetadata>(DEFAULT_METADATA);
-  const [fileName, setFileName] = useState('');
-  const [logoBuffer, setLogoBuffer] = useState<ArrayBuffer | undefined>();
-  const [stampBuffer, setStampBuffer] = useState<ArrayBuffer | undefined>();
+  const [metadata, setMetadata] = useState<InvoiceMetadata>({
+    stevilkaRacuna: '',
+    datumRacuna: todayStr(),
+    rokPlacila: addDays(30),
+    obdobjeOd: '',
+    obdobjeDo: '',
+    znesekVzdrzevanja: 0,
+    opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
+  });
 
-  useEffect(() => {
-    const base = import.meta.env.BASE_URL;
-    fetch(`${base}talpas-logo.jpg`).then(r => r.arrayBuffer()).then(setLogoBuffer).catch(() => {});
-    fetch(`${base}talpas-stamp.png`).then(r => r.arrayBuffer()).then(setStampBuffer).catch(() => {});
-  }, []);
-
-  const stranke = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of allEntries) {
-      const ime = (e.stranka || '(neznano)').trim();
-      map.set(ime, (map.get(ime) ?? 0) + 1);
+  const handleFile = async (file: File) => {
+    try {
+      const parsed = await parseExcel(file);
+      setAllEntries(parsed);
+      setStranke(getUniqueStranke(parsed));
+      setStep(2);
+    } catch (e) {
+      alert('Napaka pri branju datoteke: ' + String(e));
     }
-    return [...map.entries()]
-      .map(([ime, stevilo]) => ({ ime, stevilo }))
-      .sort((a, b) => b.stevilo - a.stevilo);
-  }, [allEntries]);
+  };
 
-  const handleFile = useCallback((buffer: ArrayBuffer, name: string) => {
-    const parsed = parseExcel(buffer);
-    setAllEntries(parsed);
-    setEntries([]);
-    setIzbranaStranka(null);
-    setFileName(name);
-  }, []);
+  const handleSelectStranka = (stranka: string, clientConfig: ClientConfig | undefined) => {
+    setSelectedStranka(stranka);
+    const cfg = clientConfig ?? {
+      id: 'unknown',
+      imeZaIskanje: [stranka.toLowerCase()],
+      imeNaRacunu: stranka,
+      naslov: '',
+      posta: '',
+      kraj: '',
+      idDDV: '',
+      cenaDt: 48,
+      cenaDi: 70,
+      znesekVzdrzevanja: 0,
+      opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
+      billingType: 'standard',
+    };
+    setClient(cfg);
 
-  const handleStrankaSelect = useCallback((ime: string) => {
-    setIzbranaStranka(ime);
-    setEntries(allEntries.filter(e => (e.stranka || '(neznano)').trim() === ime));
-  }, [allEntries]);
+    // Filter entries for this client
+    const filtered = allEntries.filter(e => {
+      if (cfg.billingType === 'umbrella') {
+        return e.skupina === stranka || cfg.imeZaIskanje.some(ime =>
+          e.stranka.toLowerCase().includes(ime) || e.skupina.toLowerCase().includes(ime)
+        );
+      }
+      return cfg.imeZaIskanje.some(ime =>
+        e.stranka.toLowerCase().includes(ime) || ime.includes(e.stranka.toLowerCase())
+      );
+    });
 
-  const handleEntryChange = useCallback((id: string, changes: Partial<WorkEntry>) => {
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
-  }, []);
+    const withRules = applyBillingRules(filtered, cfg);
+    setEntries(withRules);
+    setMetadata(m => ({
+      ...m,
+      znesekVzdrzevanja: cfg.znesekVzdrzevanja,
+      opisVzdrzevanja: cfg.opisVzdrzevanja,
+    }));
+  };
 
-  const handleEntryDelete = useCallback((id: string) => {
-    setEntries(prev => prev.filter(e => e.id !== id));
-  }, []);
+  const handleEntriesChange = (updated: WorkEntry[]) => {
+    // Re-apply billing rules when entries change
+    if (client) {
+      setEntries(applyBillingRules(updated, client));
+    }
+  };
 
-  const handleMetaChange = useCallback((changes: Partial<InvoiceMetadata>) => {
-    setMetadata(prev => ({ ...prev, ...changes }));
-  }, []);
-
-  const handleExport = useCallback(async () => {
-    if (!izbranaStranka) return;
-    const calc = izracunaj(entries, metadata.znesekVzdrzevanja);
-    const podatki = najdiStranko(izbranaStranka);
-    await generateDocx(entries, metadata, calc, podatki, logoBuffer, stampBuffer);
-  }, [entries, metadata, izbranaStranka, logoBuffer, stampBuffer]);
-
-  const handleReset = useCallback(() => {
-    setAllEntries([]);
-    setEntries([]);
-    setIzbranaStranka(null);
-    setFileName('');
-  }, []);
-
-  const calc = izracunaj(entries, metadata.znesekVzdrzevanja);
-  const strankaPodatki = izbranaStranka ? najdiStranko(izbranaStranka) : null;
+  const canProceedToStep3 = selectedStranka !== null && entries.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
-        <img src={`${import.meta.env.BASE_URL}talpas-logo.jpg`} alt="TALPAS" className="h-10 object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">TALPAS – Obračun vzdrževalnih del</h1>
-          {strankaPodatki && (
-            <p className="text-sm text-gray-500">{strankaPodatki.ime}</p>
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-4">
+          <div className="font-bold text-xl text-blue-700">TALPAS</div>
+          <div className="text-gray-400">|</div>
+          <div className="text-gray-600 text-sm">Obračun vzdrževalnih del</div>
+          {selectedStranka && (
+            <>
+              <div className="text-gray-400">|</div>
+              <div className="text-sm font-medium text-gray-700">{selectedStranka}</div>
+            </>
           )}
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {allEntries.length === 0 ? (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">1. Uvoz Excel datoteke</h2>
-            <FileUpload onFile={handleFile} />
-          </section>
-        ) : (
-          <>
-            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-              <span className="text-sm text-green-700">
-                ✓ Uvožena datoteka: <strong>{fileName}</strong> ({allEntries.length} vrstic, {stranke.length} {stranke.length === 1 ? 'stranka' : 'strank'})
-              </span>
-              <button onClick={handleReset} className="text-xs text-gray-500 hover:text-red-500 underline">
-                Zamenjaj datoteko
-              </button>
-            </div>
+      {/* Steps */}
+      <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          {[
+            { n: 1, label: 'Uvoz Excel' },
+            { n: 2, label: 'Izbira stranke' },
+            { n: 3, label: 'Tabela del' },
+            { n: 4, label: 'Povzetek' },
+            { n: 5, label: 'Izvoz' },
+          ].map(({ n, label }) => (
+            <React.Fragment key={n}>
+              <div className={`flex items-center gap-1 ${step >= n ? 'text-blue-600 font-medium' : ''}`}>
+                <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center ${
+                  step > n ? 'bg-blue-600 text-white' : step === n ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' : 'bg-gray-200 text-gray-500'
+                }`}>{n}</span>
+                {label}
+              </div>
+              {n < 5 && <div className="w-4 h-px bg-gray-300" />}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
 
-            {!izbranaStranka ? (
-              <section>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">2. Izberi stranko</h2>
-                <StrankaSelector stranke={stranke} izbrana={izbranaStranka} onSelect={handleStrankaSelect} />
-              </section>
-            ) : (
-              <>
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-                  <span className="text-sm text-blue-700">
-                    👤 Stranka: <strong>{strankaPodatki?.ime}</strong> ({entries.length} postavk)
-                  </span>
-                  <button
-                    onClick={() => { setIzbranaStranka(null); setEntries([]); }}
-                    className="text-xs text-gray-500 hover:text-blue-700 underline"
-                  >
-                    Zamenjaj stranko
-                  </button>
-                </div>
+      <main className="max-w-7xl mx-auto px-4 pb-12 space-y-6">
+        {/* Step 1: File upload */}
+        {step === 1 && (
+          <FileUpload onFileLoaded={handleFile} />
+        )}
 
-                <section>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">3. Pregled in kategorizacija del</h2>
-                  <WorkTable entries={entries} onChange={handleEntryChange} onDelete={handleEntryDelete} />
-                </section>
-
-                <section>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">4. Podatki računa in povzetek</h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <InvoiceMetadataForm metadata={metadata} onChange={handleMetaChange} />
-                    <InvoiceSummary calc={calc} />
-                  </div>
-                </section>
-
-                <section className="flex justify-end">
-                  <ExportButton
-                    entries={entries}
-                    metadata={metadata}
-                    fileNameHint={sanitize(strankaPodatki?.ime ?? 'stranka')}
-                    onExport={handleExport}
-                  />
-                </section>
-              </>
+        {/* Step 2: Client selection */}
+        {step >= 2 && (
+          <div>
+            <ClientSelector
+              stranke={stranke}
+              selected={selectedStranka}
+              onSelect={handleSelectStranka}
+            />
+            {canProceedToStep3 && step === 2 && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setStep(3)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Nadaljuj →
+                </button>
+              </div>
             )}
-          </>
+          </div>
+        )}
+
+        {/* Step 3: Work table */}
+        {step >= 3 && client && (
+          <div>
+            <WorkTable
+              entries={entries}
+              client={client}
+              onChange={handleEntriesChange}
+            />
+            {step === 3 && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setStep(4)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Nadaljuj →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 4: Summary + Metadata */}
+        {step >= 4 && client && (
+          <div className="space-y-6">
+            <InvoiceSummary
+              entries={entries}
+              client={client}
+              metadata={metadata}
+              onMetadataChange={setMetadata}
+            />
+            <InvoiceMetadataForm
+              metadata={metadata}
+              onChange={setMetadata}
+            />
+            {step === 4 && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setStep(5)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Nadaljuj →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 5: Export */}
+        {step >= 5 && client && (
+          <ExportButton
+            entries={entries}
+            client={client}
+            metadata={metadata}
+          />
+        )}
+
+        {/* Reset */}
+        {step > 1 && (
+          <div className="flex justify-start">
+            <button
+              onClick={() => {
+                setStep(1);
+                setAllEntries([]);
+                setStranke([]);
+                setSelectedStranka(null);
+                setClient(undefined);
+                setEntries([]);
+              }}
+              className="text-sm text-gray-400 hover:text-gray-600 underline"
+            >
+              Začni znova
+            </button>
+          </div>
         )}
       </main>
     </div>

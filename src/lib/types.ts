@@ -1,8 +1,29 @@
-export type WorkType = 'Dt' | 'Di' | 'V' | null;
+export type WorkType = 'Dt' | 'Di' | 'Dp' | 'V' | null;
+export type BillingType = 'standard' | 'included_hours' | 'threshold' | 'umbrella';
+
+export interface ClientConfig {
+  id: string;
+  imeZaIskanje: string[];
+  imeNaRacunu: string;
+  naslov: string;
+  posta: string;
+  kraj: string;
+  idDDV: string;
+  cenaDt: number;
+  cenaDi: number;
+  znesekVzdrzevanja: number;
+  opisVzdrzevanja: string;
+  billingType: BillingType;
+  includedHours?: number;
+  thresholdHours?: number;
+  thresholdMonths?: number;
+  krovnaStranka?: string;
+}
 
 export interface WorkEntry {
   id: string;
   stranka: string;
+  skupina: string;
   delo: string;
   datum: Date;
   kontakt: string;
@@ -11,6 +32,9 @@ export interface WorkEntry {
   steviloUrOriginal: number;
   opis: string;
   opravil: string;
+  jeVkljucena: boolean;
+  jePodPragom: boolean;
+  dpZnesek?: number;
 }
 
 export interface InvoiceMetadata {
@@ -23,11 +47,12 @@ export interface InvoiceMetadata {
   opisVzdrzevanja: string;
 }
 
-export interface Calculations {
+export interface InvoiceCalc {
   urDt: number;
   urDi: number;
   vrednostDt: number;
   vrednostDi: number;
+  vrednostDp: number;
   znesekVzdrzevanja: number;
   skupajBrezDDV: number;
   ddv: number;
@@ -35,4 +60,10 @@ export interface Calculations {
   ddvVzdrzevanje: number;
   ddvDt: number;
   ddvDi: number;
+  ddvDp: number;
+}
+
+export interface MonthlyHours {
+  mesec: string;
+  skupajUr: number;
 }

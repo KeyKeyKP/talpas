@@ -1,99 +1,99 @@
 import * as XLSX from 'xlsx';
 import { v4 as uuidv4 } from 'uuid';
-import type { WorkEntry, WorkType } from './types';
-
-const COLUMN_MAP: Record<keyof Omit<WorkEntry, 'id' | 'vrstaDela' | 'steviloUrOriginal'>, string[]> = {
-  stranka: ['stranka', 'client', 'customer'],
-  delo: ['delo', 'work', 'task'],
-  datum: ['datum', 'date'],
-  kontakt: ['kontakt', 'contact'],
-  steviloUr: ['število ur', 'ure', 'ur', 'hours'],
-  opis: ['opis', 'description'],
-  opravil: ['opravil', 'done by', 'worker'],
-};
-
-function findColumn(headers: string[], keys: string[]): number {
-  for (const key of keys) {
-    const idx = headers.findIndex(h => h?.toLowerCase().includes(key.toLowerCase()));
-    if (idx >= 0) return idx;
-  }
-  return -1;
-}
+import { WorkEntry, WorkType } from './types';
 
 function parseVrstaDela(value: unknown): WorkType {
-  if (!value) return null;
-  const v = String(value).trim().toLowerCase();
+  const v = String(value ?? '').trim().toLowerCase();
   if (v === 'dt' || v === 'd tehnik') return 'Dt';
   if (v === 'di' || v === 'd inženir' || v === 'd inzenir') return 'Di';
+  if (v === 'dp' || v === 'd po ponudbi' || v === 'po ponudbi') return 'Dp';
   if (v === 'v' || v === 'vzdrževanje' || v === 'vzdrzevanje') return 'V';
   return null;
 }
 
-function parseNumber(value: unknown): number {
-  if (typeof value === 'number') return value;
-  const str = String(value ?? '').replace(',', '.');
-  return parseFloat(str) || 0;
-}
-
 function parseDate(value: unknown): Date {
+  if (value instanceof Date) return value;
   if (typeof value === 'number') {
-    // Excel serial date
-    const date = XLSX.SSF.parse_date_code(value);
-    return new Date(date.y, date.m - 1, date.d);
+    return XLSX.SSF.parse_date_code(value) ? new Date((value - 25569) * 86400 * 1000) : new Date();
   }
   if (typeof value === 'string') {
-    // Try DD.MM.YYYY
     const parts = value.split('.');
     if (parts.length === 3) {
-      return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
     }
     return new Date(value);
   }
   return new Date();
 }
 
-export function parseExcel(buffer: ArrayBuffer): WorkEntry[] {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
+function findCol(headers: string[], keywords: string[]): number {
+  return headers.findIndex(h =>
+    keywords.some(kw => h.toLowerCase().includes(kw))
+  );
+}
 
-  if (rows.length < 2) return [];
+export function parseExcel(file: File): Promise<WorkEntry[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-  const headers = (rows[0] as unknown[]).map(h => String(h ?? ''));
+        if (rows.length < 2) { resolve([]); return; }
 
-  const colStranka = findColumn(headers, COLUMN_MAP.stranka);
-  const colDelo = findColumn(headers, COLUMN_MAP.delo);
-  const colDatum = findColumn(headers, COLUMN_MAP.datum);
-  const colKontakt = findColumn(headers, COLUMN_MAP.kontakt);
-  const colVrsta = findColumn(headers, ['vrsta']);
-  const colUre = findColumn(headers, COLUMN_MAP.steviloUr);
-  const colOpis = findColumn(headers, COLUMN_MAP.opis);
-  const colOpravil = findColumn(headers, COLUMN_MAP.opravil);
+        const headers = (rows[0] as unknown[]).map(h => String(h ?? ''));
+        const iStranka = findCol(headers, ['stranka', 'client']);
+        const iDelo = findCol(headers, ['delo', 'work']);
+        const iDatum = findCol(headers, ['datum', 'date']);
+        const iKontakt = findCol(headers, ['kontakt', 'contact']);
+        const iVrsta = findCol(headers, ['vrsta', 'type']);
+        const iUr = findCol(headers, ['število ur', 'ur', 'hours', 'število']);
+        const iOpis = findCol(headers, ['opis', 'description']);
+        const iOpravil = findCol(headers, ['opravil', 'done by']);
+        const iSkupina = findCol(headers, ['skupina', 'group', 'univerza']);
 
-  const entries: WorkEntry[] = [];
+        const entries: WorkEntry[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i] as unknown[];
+          const stranka = String(row[iStranka] ?? '').trim();
+          if (!stranka) continue;
 
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i] as unknown[];
-    if (!row || row.every(c => !c)) continue;
+          const ur = parseFloat(String(row[iUr] ?? '0').replace(',', '.')) || 0;
+          entries.push({
+            id: uuidv4(),
+            stranka,
+            skupina: iSkupina >= 0 ? String(row[iSkupina] ?? '').trim() : '',
+            delo: String(row[iDelo] ?? '').trim(),
+            datum: parseDate(row[iDatum]),
+            kontakt: String(row[iKontakt] ?? '').trim(),
+            vrstaDela: parseVrstaDela(row[iVrsta]),
+            steviloUr: ur,
+            steviloUrOriginal: ur,
+            opis: String(row[iOpis] ?? '').trim(),
+            opravil: String(row[iOpravil] ?? '').trim(),
+            jeVkljucena: false,
+            jePodPragom: false,
+          });
+        }
+        resolve(entries);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
 
-    const deloVal = String(row[colDelo] ?? '').trim();
-    if (!deloVal || deloVal.toLowerCase().includes('skupaj za obračun')) continue;
-
-    const steviloUr = parseNumber(colUre >= 0 ? row[colUre] : 0);
-
-    entries.push({
-      id: uuidv4(),
-      stranka: colStranka >= 0 ? String(row[colStranka] ?? '') : '',
-      delo: deloVal,
-      datum: parseDate(colDatum >= 0 ? row[colDatum] : null),
-      kontakt: colKontakt >= 0 ? String(row[colKontakt] ?? '') : '',
-      vrstaDela: parseVrstaDela(colVrsta >= 0 ? row[colVrsta] : null),
-      steviloUr,
-      steviloUrOriginal: steviloUr,
-      opis: colOpis >= 0 ? String(row[colOpis] ?? '') : '',
-      opravil: colOpravil >= 0 ? String(row[colOpravil] ?? '') : '',
-    });
+export function getUniqueStranke(entries: WorkEntry[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const e of entries) {
+    const key = e.skupina || e.stranka;
+    if (!seen.has(key)) { seen.add(key); result.push(key); }
   }
-
-  return entries;
+  return result;
 }

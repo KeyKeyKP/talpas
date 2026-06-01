@@ -1,89 +1,40 @@
 import React from 'react';
-import type { InvoiceMetadata } from '../lib/types';
-import { DEFAULT_VZDRZEVANJE_OPIS } from '../config/constants';
+import { InvoiceMetadata } from '../lib/types';
 
 interface Props {
   metadata: InvoiceMetadata;
-  onChange: (changes: Partial<InvoiceMetadata>) => void;
+  onChange: (m: InvoiceMetadata) => void;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, value, onChange, type = 'text' }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string;
+}) {
   return (
-    <div>
-      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{label}</label>
-      {children}
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-gray-500 font-medium">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="border border-yellow-300 bg-yellow-50 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+      />
     </div>
   );
 }
 
-const inputCls = "w-full border border-yellow-300 bg-yellow-50 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400";
+export default function InvoiceMetadataForm({ metadata, onChange }: Props) {
+  const set = (key: keyof InvoiceMetadata) => (val: string) =>
+    onChange({ ...metadata, [key]: val });
 
-export function InvoiceMetadataForm({ metadata, onChange }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-base font-semibold text-gray-700 mb-4">Podatki računa</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Številka računa">
-          <input
-            className={inputCls}
-            value={metadata.stevilkaRacuna}
-            onChange={e => onChange({ stevilkaRacuna: e.target.value })}
-            placeholder="npr. 202600534"
-          />
-        </Field>
-        <Field label="Datum računa">
-          <input
-            type="date"
-            className={inputCls}
-            value={metadata.datumRacuna}
-            onChange={e => onChange({ datumRacuna: e.target.value })}
-          />
-        </Field>
-        <Field label="Rok plačila (valuta)">
-          <input
-            type="date"
-            className={inputCls}
-            value={metadata.rokPlacila}
-            onChange={e => onChange({ rokPlacila: e.target.value })}
-          />
-        </Field>
-        <div className="flex gap-2">
-          <Field label="Obdobje od">
-            <input
-              type="date"
-              className={inputCls}
-              value={metadata.obdobjeOd}
-              onChange={e => onChange({ obdobjeOd: e.target.value })}
-            />
-          </Field>
-          <Field label="do">
-            <input
-              type="date"
-              className={inputCls}
-              value={metadata.obdobjeDo}
-              onChange={e => onChange({ obdobjeDo: e.target.value })}
-            />
-          </Field>
-        </div>
-        <Field label="Znesek vzdrževanja (EUR brez DDV)">
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className={inputCls}
-            value={metadata.znesekVzdrzevanja || ''}
-            onChange={e => onChange({ znesekVzdrzevanja: parseFloat(e.target.value) || 0 })}
-            placeholder="580.00"
-          />
-        </Field>
-        <Field label="Opis vzdrževanja">
-          <input
-            className={inputCls + " col-span-2"}
-            value={metadata.opisVzdrzevanja}
-            onChange={e => onChange({ opisVzdrzevanja: e.target.value })}
-            placeholder={DEFAULT_VZDRZEVANJE_OPIS}
-          />
-        </Field>
+    <div className="bg-white rounded-xl shadow p-6">
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">Metadata računa</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <Field label="Številka računa" value={metadata.stevilkaRacuna} onChange={set('stevilkaRacuna')} />
+        <Field label="Datum računa" value={metadata.datumRacuna} onChange={set('datumRacuna')} type="date" />
+        <Field label="Rok plačila" value={metadata.rokPlacila} onChange={set('rokPlacila')} type="date" />
+        <Field label="Obdobje od" value={metadata.obdobjeOd} onChange={set('obdobjeOd')} type="date" />
+        <Field label="Obdobje do" value={metadata.obdobjeDo} onChange={set('obdobjeDo')} type="date" />
       </div>
     </div>
   );
