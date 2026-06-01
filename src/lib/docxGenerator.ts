@@ -1,17 +1,15 @@
 import {
   Document, Packer, Paragraph, Table, TableRow, TableCell,
-  TextRun, WidthType, AlignmentType, BorderStyle, ShadingType,
-  PageBreak, Header, ImageRun, VerticalAlign, HeightRule,
+  TextRun, WidthType, AlignmentType, ShadingType,
+  PageBreak, ImageRun, VerticalAlign, HeightRule,
   convertInchesToTwip, TableLayoutType,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './types';
 import { izracunaj, formatNum } from './calculations';
-import { IZDAJATELJ, DDV_STOPNJA } from '../config/constants';
+import { IZDAJATELJ } from '../config/constants';
 
-const YELLOW = 'FFFF00';
 const LIGHT_GRAY = 'F2F2F2';
-const DARK = '1F2937';
 
 function cell(text: string, opts?: {
   bold?: boolean; shade?: string; align?: 'left' | 'right' | 'center';
@@ -156,7 +154,7 @@ export async function generateDocx(
   const sortedEntries = [...entries].sort((a, b) => b.datum.getTime() - a.datum.getTime());
   const isUmbrella = client.billingType === 'umbrella';
 
-  function makeAppendixTable(rows: WorkEntry[], showStatus: boolean): Table {
+  function makeAppendixTable(rows: WorkEntry[]): Table {
     const tableRows: TableRow[] = [
       headerRow(['Delo', 'Datum', 'Kontakt', 'Vrsta dela', 'Ure', 'Opis', 'Opravil']),
       ...rows.map(e => {
@@ -192,7 +190,7 @@ export async function generateDocx(
           spacing: { before: 200, after: 100 },
         })
       );
-      appendixSections.push(makeAppendixTable(rows, false) as unknown as Paragraph);
+      appendixSections.push(makeAppendixTable(rows) as unknown as Paragraph);
       const dtUr = rows.filter(r => r.vrstaDela === 'Dt' && !r.jeVkljucena && !r.jePodPragom).reduce((s, r) => s + r.steviloUr, 0);
       const diUr = rows.filter(r => r.vrstaDela === 'Di' && !r.jeVkljucena && !r.jePodPragom).reduce((s, r) => s + r.steviloUr, 0);
       appendixSections.push(new Paragraph({
@@ -208,7 +206,7 @@ export async function generateDocx(
       children: [new TextRun({ text: `D tehnik: ${formatNum(calc.urDt)} ur | D inženir: ${formatNum(calc.urDi)} ur` })],
     }));
   } else {
-    appendixSections.push(makeAppendixTable(sortedEntries, true) as unknown as Paragraph);
+    appendixSections.push(makeAppendixTable(sortedEntries) as unknown as Paragraph);
     appendixSections.push(new Paragraph({
       spacing: { before: 200 },
       children: [new TextRun({ text: `SKUPAJ: Dt ${formatNum(calc.urDt)} ur | Di ${formatNum(calc.urDi)} ur`, bold: true })],
@@ -223,7 +221,6 @@ export async function generateDocx(
       children: [new ImageRun({
         data: logoBuffer,
         transformation: { width: 150, height: 50 },
-        type: 'jpg',
       })],
       spacing: { after: 200 },
     }));
@@ -275,7 +272,6 @@ export async function generateDocx(
       children: [new ImageRun({
         data: stampBuffer,
         transformation: { width: 100, height: 100 },
-        type: 'png',
       })],
     }));
   }
@@ -285,7 +281,6 @@ export async function generateDocx(
       children: [new ImageRun({
         data: footerBuffer,
         transformation: { width: 600, height: 60 },
-        type: 'jpg',
       })],
       spacing: { before: 400 },
     }));

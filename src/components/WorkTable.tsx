@@ -1,4 +1,3 @@
-import React from 'react';
 import { WorkEntry, ClientConfig } from '../lib/types';
 import WorkRow from './WorkRow';
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { WorkEntry, WorkType } from '../lib/types';
 import { formatDate } from '../lib/calculations';
 

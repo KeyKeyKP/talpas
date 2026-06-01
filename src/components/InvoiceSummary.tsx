@@ -1,4 +1,3 @@
-import React from 'react';
 import { WorkEntry, ClientConfig, InvoiceMetadata, InvoiceCalc } from '../lib/types';
 import { izracunaj, formatEur, formatNum } from '../lib/calculations';
 

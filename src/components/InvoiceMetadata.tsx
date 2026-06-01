@@ -1,4 +1,3 @@
-import React from 'react';
 import { InvoiceMetadata } from '../lib/types';
 
 interface Props {

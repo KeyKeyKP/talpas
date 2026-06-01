@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import FileUpload from './components/FileUpload';
 import ClientSelector from './components/ClientSelector';
 import WorkTable from './components/WorkTable';
@@ -8,7 +8,6 @@ import ExportButton from './components/ExportButton';
 import { parseExcel, getUniqueStranke } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
-import { findClient } from './data/clients';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);

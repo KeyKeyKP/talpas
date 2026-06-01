@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from '../lib/types';
 import { generateDocx } from '../lib/docxGenerator';
 import { saveMonthlyHours } from '../lib/historyStore';

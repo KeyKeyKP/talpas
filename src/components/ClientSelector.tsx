@@ -1,4 +1,3 @@
-import React from 'react';
 import { ClientConfig } from '../lib/types';
 import { findClient } from '../data/clients';
 
