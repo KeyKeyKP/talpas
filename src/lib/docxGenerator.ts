@@ -189,6 +189,32 @@ export async function generateDocx(
     // Postavke (loop – za nazaj kompatibilnost)
     postavke,
 
+    // Vzdrževanje – conditional row (empty array = hidden)
+    vzdrzevanjeArr: calc.znesekVzdrzevanja > 0 ? [{
+      opisVzdrzevanja: metadata.opisVzdrzevanja || 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
+      znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
+      ddvVzdrzevanje: eur(calc.ddvVzdrzevanje),
+      vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja + calc.ddvVzdrzevanje),
+    }] : [],
+
+    // Delo tehnik – conditional row (empty array = hidden)
+    dtArr: calc.urDt > 0 ? [{
+      urDt: formatNum(calc.urDt),
+      cenaDt: eur(client.cenaDt),
+      vrednostDt: eur(calc.vrednostDt),
+      ddvDt: eur(calc.ddvDt),
+      dtZDDV: eur(calc.vrednostDt + calc.ddvDt),
+    }] : [],
+
+    // Delo inženir – conditional row (empty array = hidden)
+    diArr: calc.urDi > 0 ? [{
+      urDi: formatNum(calc.urDi),
+      cenaDi: eur(client.cenaDi),
+      vrednostDi: eur(calc.vrednostDi),
+      ddvDi: eur(calc.ddvDi),
+      diZDDV: eur(calc.vrednostDi + calc.ddvDi),
+    }] : [],
+
     // Gostovanje – conditional row (empty array = hidden)
     gostovanjeArr: calc.znesekGostovanja > 0 ? [{
       znesekGostovanja: eur(calc.znesekGostovanja),
@@ -356,6 +382,20 @@ export async function generateUniversityInvoice(
     skupajZaPlacilo: eur(calc.skupajZDDV),
 
     postavke,
+    vzdrzevanjeArr: calc.znesekVzdrzevanja > 0 ? [{
+      opisVzdrzevanja: metadata.opisVzdrzevanja || 'Vzdrževanje po pogodbi',
+      znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
+      ddvVzdrzevanje: eur(calc.znesekVzdrzevanja * DDV_STOPNJA),
+      vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja * (1 + DDV_STOPNJA)),
+    }] : [],
+    dtArr: calc.urD > 0 ? [{
+      urDt: formatNum(calc.urD),
+      cenaDt: eur(cenaDodatno),
+      vrednostDt: eur(calc.vrednostD),
+      ddvDt: eur(calc.vrednostD * DDV_STOPNJA),
+      dtZDDV: eur(calc.vrednostD * (1 + DDV_STOPNJA)),
+    }] : [],
+    diArr: [],
     gostovanjeArr: [],
     dpArr: [],
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
