@@ -13,7 +13,7 @@ import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
-import { loadClientRegister } from './lib/clientRegister';
+import { loadClientRegister, findClientWithRegister } from './lib/clientRegister';
 import { DEFAULT_CENA_DT } from './config/constants';
 
 function fmtDate(d: Date) {
@@ -56,6 +56,7 @@ export default function App() {
     opisVzdrzevanja: 'Vzdrževanje po pogodbi',
   });
   const [cenaDodatno, setCenaDodatno] = useState(DEFAULT_CENA_DT);
+  const [exportedStranke, setExportedStranke] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadClientRegister('/talpas'); }, []);
 
@@ -64,6 +65,7 @@ export default function App() {
       const parsed = await parseExcel(file);
       setAllEntries(parsed);
       setStranke(getStrankeStats(parsed));
+      setExportedStranke(new Set());
       setStep(2);
     } catch (e) {
       alert('Napaka pri branju datoteke: ' + String(e));
@@ -103,9 +105,10 @@ export default function App() {
     }
   };
 
-  const handleSelectStranka = (stranka: string, clientConfig: ClientConfig | undefined) => {
+  const handleSelectStranka = (stranka: string, _passedConfig: ClientConfig | undefined) => {
     setSelectedStranka(stranka);
-    const cfg = clientConfig ?? {
+    // Always do a fresh register lookup here – guarantees we get the loaded register data
+    const cfg = findClientWithRegister(stranka) ?? {
       id: 'unknown',
       imeZaIskanje: [stranka.toLowerCase()],
       imeNaRacunu: stranka,
@@ -178,6 +181,7 @@ export default function App() {
     setUniClient(undefined);
     setUniMetadata({ ...EMPTY_METADATA, opisVzdrzevanja: 'Vzdrževanje po pogodbi' });
     setCenaDodatno(DEFAULT_CENA_DT);
+    setExportedStranke(new Set());
   };
 
   const steps = uniMode
@@ -265,6 +269,7 @@ export default function App() {
               stranke={stranke}
               selected={selectedStranka}
               onSelect={(name, cfg) => handleSelectStranka(name, cfg)}
+              exportedStranke={exportedStranke}
             />
             {canProceedToStep3 && step === 2 && (
               <div className="mt-4 flex justify-end">
@@ -364,6 +369,8 @@ export default function App() {
                 entries={entries}
                 client={client}
                 metadata={metadata}
+                strankaName={selectedStranka ?? ''}
+                onExported={(name) => setExportedStranke(prev => new Set([...prev, name]))}
               />
             )
           )

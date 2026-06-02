@@ -7,9 +7,11 @@ interface Props {
   entries: WorkEntry[];
   client: ClientConfig;
   metadata: InvoiceMetadata;
+  strankaName?: string;
+  onExported?: (name: string) => void;
 }
 
-export default function ExportButton({ entries, client, metadata }: Props) {
+export default function ExportButton({ entries, client, metadata, strankaName, onExported }: Props) {
   const [loading, setLoading] = useState(false);
 
   const uncategorized = entries.filter(e => e.vrstaDela === null);
@@ -26,6 +28,8 @@ export default function ExportButton({ entries, client, metadata }: Props) {
     setLoading(true);
     try {
       await generateDocx(entries, client, metadata);
+
+      if (strankaName) onExported?.(strankaName);
 
       // Save hours history for threshold clients
       if (client.billingType === 'threshold') {

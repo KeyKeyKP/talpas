@@ -5,6 +5,7 @@ interface Props {
   stranke: Array<{ name: string; count: number }>;
   selected: string | null;
   onSelect: (stranka: string, client: ClientConfig | undefined) => void;
+  exportedStranke?: Set<string>;
 }
 
 const BILLING_LABELS: Record<string, string> = {
@@ -14,7 +15,7 @@ const BILLING_LABELS: Record<string, string> = {
   umbrella: 'Krovna pogodba',
 };
 
-export default function ClientSelector({ stranke, selected, onSelect }: Props) {
+export default function ClientSelector({ stranke, selected, onSelect, exportedStranke }: Props) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Izberi stranko za obračun</h2>
@@ -23,12 +24,15 @@ export default function ClientSelector({ stranke, selected, onSelect }: Props) {
           const client = findClientWithRegister(name);
           const inRegister = isInRegister(name);
           const isSelected = selected === name;
+          const isExported = exportedStranke?.has(name) ?? false;
           return (
             <button
               key={name}
               onClick={() => onSelect(name, findClientWithRegister(name))}
               className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
-                isSelected
+                isExported
+                  ? 'bg-red-50 border-l-4 border-l-red-500 text-gray-700'
+                  : isSelected
                   ? 'bg-blue-50 text-blue-800 font-medium'
                   : 'hover:bg-gray-50 text-gray-700'
               }`}
