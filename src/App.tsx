@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import ClientSelector from './components/ClientSelector';
 import WorkTable from './components/WorkTable';
@@ -13,6 +13,7 @@ import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
+import { loadClientRegister } from './lib/clientRegister';
 import { DEFAULT_CENA_DT } from './config/constants';
 
 function fmtDate(d: Date) {
@@ -55,6 +56,8 @@ export default function App() {
     opisVzdrzevanja: 'Vzdrževanje po pogodbi',
   });
   const [cenaDodatno, setCenaDodatno] = useState(DEFAULT_CENA_DT);
+
+  useEffect(() => { loadClientRegister('/talpas'); }, []);
 
   const handleFile = async (file: File) => {
     try {

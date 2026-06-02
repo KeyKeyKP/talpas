@@ -1,5 +1,5 @@
 import { ClientConfig } from '../lib/types';
-import { findClient } from '../data/clients';
+import { findClientWithRegister, isInRegister } from '../lib/clientRegister';
 
 interface Props {
   stranke: Array<{ name: string; count: number }>;
@@ -20,7 +20,8 @@ export default function ClientSelector({ stranke, selected, onSelect }: Props) {
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Izberi stranko za obračun</h2>
       <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
         {stranke.map(({ name, count }) => {
-          const client = findClient(name);
+          const client = findClientWithRegister(name);
+          const inRegister = isInRegister(name);
           const isSelected = selected === name;
           return (
             <button
@@ -34,6 +35,9 @@ export default function ClientSelector({ stranke, selected, onSelect }: Props) {
             >
               <span>
                 {name}
+                {inRegister && (
+                  <span className="ml-2 text-xs text-green-600 font-normal">✓</span>
+                )}
                 {client && (
                   <span className="ml-2 text-xs text-gray-400 font-normal">
                     {BILLING_LABELS[client.billingType]}
@@ -50,7 +54,7 @@ export default function ClientSelector({ stranke, selected, onSelect }: Props) {
       </div>
 
       {selected && (() => {
-        const client = findClient(selected);
+        const client = findClientWithRegister(selected);
         if (!client) return (
           <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700">
             ⚠ Stranka <strong>{selected}</strong> ni v registru. Uporabljena bodo standardna pravila obračuna.
