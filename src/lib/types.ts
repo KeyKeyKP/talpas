@@ -1,4 +1,4 @@
-export type WorkType = 'Dt' | 'Di' | 'Dp' | 'V' | null;
+export type WorkType = 'Dt' | 'Di' | 'Dp' | 'V' | 'D' | null;
 export type BillingType = 'standard' | 'included_hours' | 'threshold' | 'umbrella';
 
 export interface ClientConfig {
@@ -66,4 +66,15 @@ export interface InvoiceCalc {
 export interface MonthlyHours {
   mesec: string;
   skupajUr: number;
+}
+
+export interface UniversityCalc {
+  urD: number;
+  vrednostD: number;
+  dpPoFakultetah: Array<{ fakulteta: string; znesek: number }>;
+  vrednostDp: number;
+  znesekVzdrzevanja: number;
+  skupajBrezDDV: number;
+  ddv: number;
+  skupajZDDV: number;
 }

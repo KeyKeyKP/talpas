@@ -8,6 +8,7 @@ function parseVrstaDela(value: unknown): WorkType {
   if (v === 'di' || v === 'd inženir' || v === 'd inzenir') return 'Di';
   if (v === 'dp' || v === 'd po ponudbi' || v === 'po ponudbi') return 'Dp';
   if (v === 'v' || v === 'vzdrževanje' || v === 'vzdrzevanje') return 'V';
+  if (v === 'd' || v === 'dodatno delo') return 'D';
   return null;
 }
 
