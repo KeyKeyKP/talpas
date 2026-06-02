@@ -123,5 +123,6 @@ export function findClientWithRegister(strankaName: string): ClientConfig | unde
     cenaDt: regEntry.cenaDt,
     cenaDi: regEntry.cenaDi,
     znesekVzdrzevanja: regEntry.mesecniPausal > 0 ? regEntry.mesecniPausal : base.znesekVzdrzevanja,
+    gostovanj: regEntry.gostovanj,
   };
 }

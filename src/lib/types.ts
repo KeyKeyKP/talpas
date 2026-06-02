@@ -14,6 +14,7 @@ export interface ClientConfig {
   znesekVzdrzevanja: number;
   opisVzdrzevanja: string;
   billingType: BillingType;
+  gostovanj?: number;
   includedHours?: number;
   thresholdHours?: number;
   thresholdMonths?: number;
@@ -44,6 +45,7 @@ export interface InvoiceMetadata {
   obdobjeOd: string;
   obdobjeDo: string;
   znesekVzdrzevanja: number;
+  znesekGostovanja: number;
   opisVzdrzevanja: string;
 }
 
@@ -54,10 +56,12 @@ export interface InvoiceCalc {
   vrednostDi: number;
   vrednostDp: number;
   znesekVzdrzevanja: number;
+  znesekGostovanja: number;
   skupajBrezDDV: number;
   ddv: number;
   skupajZDDV: number;
   ddvVzdrzevanje: number;
+  ddvGostovanje: number;
   ddvDt: number;
   ddvDi: number;
   ddvDp: number;

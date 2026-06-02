@@ -18,7 +18,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 
 export default function InvoiceSummary({ entries, client, metadata, onMetadataChange }: Props) {
-  const calc: InvoiceCalc = izracunaj(entries, client, metadata.znesekVzdrzevanja);
+  const calc: InvoiceCalc = izracunaj(entries, client, metadata.znesekVzdrzevanja, metadata.znesekGostovanja);
   const isIncluded = client.billingType === 'included_hours';
   const isThreshold = client.billingType === 'threshold';
 
@@ -30,8 +30,8 @@ export default function InvoiceSummary({ entries, client, metadata, onMetadataCh
     <div className="bg-white rounded-xl shadow p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Povzetek – {client.imeNaRacunu}</h2>
 
-      {/* Vzdrževanje */}
-      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Vzdrževanje + Gostovanje */}
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="text-xs text-gray-500 font-medium block mb-1">Znesek vzdrževanja (brez DDV)</label>
           <div className="flex items-center gap-2">
@@ -41,6 +41,20 @@ export default function InvoiceSummary({ entries, client, metadata, onMetadataCh
               step="0.01"
               value={metadata.znesekVzdrzevanja}
               onChange={e => onMetadataChange({ ...metadata, znesekVzdrzevanja: parseFloat(e.target.value) || 0 })}
+              className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+            <span className="text-sm text-gray-500">EUR</span>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 font-medium block mb-1">Gostovanje (brez DDV)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={metadata.znesekGostovanja}
+              onChange={e => onMetadataChange({ ...metadata, znesekGostovanja: parseFloat(e.target.value) || 0 })}
               className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
             <span className="text-sm text-gray-500">EUR</span>
@@ -72,6 +86,9 @@ export default function InvoiceSummary({ entries, client, metadata, onMetadataCh
 
         {calc.znesekVzdrzevanja > 0 && (
           <Row label="Vzdrževanje:" value={formatEur(calc.znesekVzdrzevanja)} />
+        )}
+        {calc.znesekGostovanja > 0 && (
+          <Row label="Gostovanje:" value={formatEur(calc.znesekGostovanja)} />
         )}
         {calc.urDt > 0 && (
           <Row label={`Delo tehnik: ${formatNum(calc.urDt)} ur × ${client.cenaDt},00 EUR:`} value={formatEur(calc.vrednostDt)} />

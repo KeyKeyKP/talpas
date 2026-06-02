@@ -4,7 +4,8 @@ import { DDV_STOPNJA } from '../config/constants';
 export function izracunaj(
   entries: WorkEntry[],
   client: ClientConfig,
-  znesekVzdrzevanja: number
+  znesekVzdrzevanja: number,
+  znesekGostovanja = 0
 ): InvoiceCalc {
   const obracunljiviDt = entries.filter(e => e.vrstaDela === 'Dt' && !e.jeVkljucena && !e.jePodPragom);
   const obracunljiviDi = entries.filter(e => e.vrstaDela === 'Di' && !e.jeVkljucena && !e.jePodPragom);
@@ -17,7 +18,7 @@ export function izracunaj(
   const vrednostDi = urDi * client.cenaDi;
   const vrednostDp = obracunljiviDp.reduce((s, e) => s + (e.dpZnesek ?? 0), 0);
 
-  const skupajBrezDDV = znesekVzdrzevanja + vrednostDt + vrednostDi + vrednostDp;
+  const skupajBrezDDV = znesekVzdrzevanja + znesekGostovanja + vrednostDt + vrednostDi + vrednostDp;
   const ddv = skupajBrezDDV * DDV_STOPNJA;
 
   return {
@@ -27,10 +28,12 @@ export function izracunaj(
     vrednostDi,
     vrednostDp,
     znesekVzdrzevanja,
+    znesekGostovanja,
     skupajBrezDDV,
     ddv,
     skupajZDDV: skupajBrezDDV + ddv,
     ddvVzdrzevanje: znesekVzdrzevanja * DDV_STOPNJA,
+    ddvGostovanje: znesekGostovanja * DDV_STOPNJA,
     ddvDt: vrednostDt * DDV_STOPNJA,
     ddvDi: vrednostDi * DDV_STOPNJA,
     ddvDp: vrednostDp * DDV_STOPNJA,

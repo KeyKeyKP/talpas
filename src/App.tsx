@@ -33,6 +33,7 @@ const EMPTY_METADATA: InvoiceMetadata = {
   obdobjeOd: '',
   obdobjeDo: '',
   znesekVzdrzevanja: 0,
+  znesekGostovanja: 0,
   opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
 };
 
@@ -152,6 +153,7 @@ export default function App() {
     setMetadata(m => ({
       ...m,
       znesekVzdrzevanja: cfg.znesekVzdrzevanja,
+      znesekGostovanja: cfg.gostovanj ?? 0,
       opisVzdrzevanja: cfg.opisVzdrzevanja,
       obdobjeOd,
       obdobjeDo,

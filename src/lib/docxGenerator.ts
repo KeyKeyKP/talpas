@@ -25,7 +25,7 @@ export async function generateDocx(
   metadata: InvoiceMetadata,
   basePath = '/talpas'
 ): Promise<void> {
-  const calc = izracunaj(entries, client, metadata.znesekVzdrzevanja);
+  const calc = izracunaj(entries, client, metadata.znesekVzdrzevanja, metadata.znesekGostovanja);
   const templateBuffer = await loadTemplate(basePath);
 
   const zip = new PizZip(templateBuffer);
@@ -189,6 +189,20 @@ export async function generateDocx(
     // Postavke (loop – za nazaj kompatibilnost)
     postavke,
 
+    // Gostovanje – conditional row (empty array = hidden)
+    gostovanjeArr: calc.znesekGostovanja > 0 ? [{
+      znesekGostovanja: eur(calc.znesekGostovanja),
+      ddvGostovanja: eur(calc.ddvGostovanje),
+      gostovanjeZDDV: eur(calc.znesekGostovanja + calc.ddvGostovanje),
+    }] : [],
+
+    // Dp – conditional row (empty array = hidden)
+    dpArr: calc.vrednostDp > 0 ? [{
+      vrednostDp: eur(calc.vrednostDp),
+      ddvDp: eur(calc.ddvDp),
+      dpZDDV: eur(calc.vrednostDp + calc.ddvDp),
+    }] : [],
+
     // Priloga
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
     priloga: prilogaVrstice,
@@ -342,6 +356,8 @@ export async function generateUniversityInvoice(
     skupajZaPlacilo: eur(calc.skupajZDDV),
 
     postavke,
+    gostovanjeArr: [],
+    dpArr: [],
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
     prilogaVrstice: [],
     isUmbrella: true,
