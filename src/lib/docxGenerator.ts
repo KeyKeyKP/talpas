@@ -141,14 +141,15 @@ export async function generateDocx(
     izdala: IZDAJATELJ.izdala ?? '',
 
     // Prejemnik
-    stranka_ime: client.imeNaRacunu ?? '',
-    stranka_naslov: client.naslov ?? '',
-    stranka_posta: client.posta ?? '',
-    stranka_kraj: client.kraj ?? '',
-    stranka_idDDV: client.idDDV ?? '',
+    imeStranke: client.imeNaRacunu ?? '',
+    naslovStranke: client.naslov ?? '',
+    postaStranke: client.posta ?? '',
+    krajStranke: client.kraj ?? '',
+    idDDV: client.idDDV ?? '',
 
     // Metadata računa
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
+    sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
     datumRacuna: metadata.datumRacuna ?? '',
     rokPlacila: metadata.rokPlacila ?? '',
     obdobjeOd: metadata.obdobjeOd ?? '',
@@ -301,13 +302,14 @@ export async function generateUniversityInvoice(
     izdajatelj_web: IZDAJATELJ.web ?? '',
     izdala: IZDAJATELJ.izdala ?? '',
 
-    stranka_ime: client.imeNaRacunu ?? '',
-    stranka_naslov: client.naslov ?? '',
-    stranka_posta: client.posta ?? '',
-    stranka_kraj: client.kraj ?? '',
-    stranka_idDDV: client.idDDV ?? '',
+    imeStranke: client.imeNaRacunu ?? '',
+    naslovStranke: client.naslov ?? '',
+    postaStranke: client.posta ?? '',
+    krajStranke: client.kraj ?? '',
+    idDDV: client.idDDV ?? '',
 
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
+    sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
     datumRacuna: metadata.datumRacuna ?? '',
     rokPlacila: metadata.rokPlacila ?? '',
     obdobjeOd: metadata.obdobjeOd ?? '',

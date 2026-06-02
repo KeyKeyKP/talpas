@@ -26,7 +26,7 @@ export default function ClientSelector({ stranke, selected, onSelect }: Props) {
           return (
             <button
               key={name}
-              onClick={() => onSelect(name, client)}
+              onClick={() => onSelect(name, findClientWithRegister(name))}
               className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
                 isSelected
                   ? 'bg-blue-50 text-blue-800 font-medium'
