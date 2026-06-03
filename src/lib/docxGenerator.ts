@@ -24,6 +24,71 @@ async function loadTemplate(basePath: string, filename = 'template_racun.docx'):
   return res.arrayBuffer();
 }
 
+function xmlEsc(s: string): string {
+  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): string {
+  const byFakulteta = new Map<string, WorkEntry[]>();
+  for (const e of entries) {
+    const key = e.stranka ?? 'Neznana';
+    if (!byFakulteta.has(key)) byFakulteta.set(key, []);
+    byFakulteta.get(key)!.push(e);
+  }
+
+  const borders = '<w:tblBorders>' +
+    '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '</w:tblBorders>';
+
+  const cell = (text: string, bold = false) => {
+    const rPr = bold
+      ? '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>'
+      : '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>';
+    return `<w:tc><w:p><w:r>${rPr}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r></w:p></w:tc>`;
+  };
+
+  let xml = '';
+
+  for (const [fakulteta, rows] of byFakulteta) {
+    const skupajUrD = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
+
+    xml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+
+    xml += '<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr>' +
+      '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>' +
+      '<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>' +
+      `<w:t>Priloga računa št. ${xmlEsc(stevilkaRacuna)} – ${xmlEsc(fakulteta)}</w:t></w:r></w:p>`;
+
+    xml += '<w:p/>';
+
+    const hdr = '<w:tr><w:trPr><w:tblHeader/></w:trPr>' +
+      cell('Delo', true) + cell('Datum', true) + cell('Kontakt', true) +
+      cell('Vrsta dela', true) + cell('Ur', true) + cell('Opis', true) + cell('Opravil', true) +
+      '</w:tr>';
+
+    const dataRows = rows.map(e =>
+      '<w:tr>' +
+      cell(e.delo ?? '') + cell(formatDateSl(e.datum)) + cell(e.kontakt ?? '') +
+      cell(e.vrstaDela ?? '') + cell(dec(e.steviloUr)) + cell(e.opis ?? '') + cell(e.opravil ?? '') +
+      '</w:tr>'
+    ).join('');
+
+    xml += `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>${borders}</w:tblPr><w:tblGrid/>${hdr}${dataRows}</w:tbl>`;
+
+    xml += '<w:p><w:r>' +
+      '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>' +
+      '<w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>' +
+      `<w:t>Skupaj: D ${xmlEsc(dec(skupajUrD))} ur</w:t></w:r></w:p>`;
+  }
+
+  return xml;
+}
+
 export async function generateDocx(
   entries: WorkEntry[],
   client: ClientConfig,
@@ -387,16 +452,8 @@ export async function generateUniversityInvoice(
     }] : [],
 
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
-    // Template uses {#priloga} — flatten all entries for the appendix
-    priloga: sortedEntries.map(e => ({
-      delo: e.delo ?? '',
-      datum: formatDateSl(e.datum),
-      kontakt: e.kontakt ?? '',
-      vrstaDela: e.vrstaDela ?? '',
-      steviloUr: dec(e.steviloUr),
-      opis: e.opis ?? '',
-      opravil: e.opravil ?? '',
-    })),
+    // Appendix is built programmatically per-faculty — pass empty to suppress template loop
+    priloga: [],
     skupajUrDt: dec(calc.urD),
     skupajUrDi: '0',
   };
@@ -414,7 +471,31 @@ export async function generateUniversityInvoice(
   try {
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
     doc.render(uniData);
-    const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+    // Inject per-faculty appendix pages into rendered XML
+    const renderedZip = doc.getZip();
+    let docXml = renderedZip.files['word/document.xml'].asText();
+
+    // Preserve sectPr (page margins, header/footer references) — must stay at end of body
+    const sectPrStart = docXml.lastIndexOf('<w:sectPr');
+    const sectPrEnd = docXml.lastIndexOf('</w:sectPr>') + '</w:sectPr>'.length;
+    const sectPr = sectPrStart !== -1 ? docXml.substring(sectPrStart, sectPrEnd) : '';
+
+    // Replace template appendix section (starts at "Priloga računa" paragraph) with per-faculty pages
+    const appendixIdx = docXml.indexOf('<w:t>Priloga ra');
+    const facultyXml = buildFacultyAppendixXml(sortedEntries, metadata.stevilkaRacuna ?? '');
+    if (appendixIdx !== -1) {
+      const paraStart = docXml.lastIndexOf('<w:p', appendixIdx);
+      docXml = docXml.substring(0, paraStart) + facultyXml + '<w:p/>' + sectPr + '</w:body></w:document>';
+    } else {
+      // Fallback: inject before sectPr
+      const cutAt = sectPrStart !== -1 ? sectPrStart : docXml.lastIndexOf('</w:body>');
+      const tail = sectPrStart !== -1 ? sectPr + '</w:body></w:document>' : '</w:body></w:document>';
+      docXml = docXml.substring(0, cutAt) + facultyXml + '<w:p/>' + tail;
+    }
+
+    renderedZip.file('word/document.xml', docXml);
+    const blob = renderedZip.generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
   } catch (error: unknown) {
     const e = error as { properties?: { errors?: unknown }; message?: string };
