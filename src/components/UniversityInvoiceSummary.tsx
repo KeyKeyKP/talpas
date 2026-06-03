@@ -18,13 +18,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 
 export default function UniversityInvoiceSummary({ entries, client, metadata, onMetadataChange }: Props) {
-  const calc = izracunajUniverza(
-    entries,
-    client.cenaDt,
-    client.cenaDi,
-    metadata.znesekVzdrzevanja,
-    metadata.znesekGostovanja
-  );
+  const calc = izracunajUniverza(entries, client.cenaDt, metadata.znesekVzdrzevanja);
 
   return (
     <div className="bg-white rounded-xl shadow p-6">
@@ -33,7 +27,7 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
       </h2>
 
       {/* Input fields */}
-      <div className="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="text-xs text-gray-500 font-medium block mb-1">Znesek vzdrževanja (brez DDV)</label>
           <div className="flex items-center gap-2">
@@ -43,20 +37,6 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
               step="0.01"
               value={metadata.znesekVzdrzevanja}
               onChange={e => onMetadataChange({ ...metadata, znesekVzdrzevanja: parseFloat(e.target.value) || 0 })}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-            <span className="text-sm text-gray-500">EUR</span>
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 font-medium block mb-1">Gostovanje (brez DDV)</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={metadata.znesekGostovanja}
-              onChange={e => onMetadataChange({ ...metadata, znesekGostovanja: parseFloat(e.target.value) || 0 })}
               className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
             <span className="text-sm text-gray-500">EUR</span>
@@ -77,33 +57,24 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
       {calc.poFakultetah.length > 0 && (
         <div className="mb-5">
           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Po fakultetah</div>
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs">
-                <tr>
-                  <th className="px-4 py-2 text-left font-medium">Fakulteta</th>
-                  <th className="px-3 py-2 text-right font-medium">Dt (ur)</th>
-                  <th className="px-3 py-2 text-right font-medium">Di (ur)</th>
-                  <th className="px-3 py-2 text-right font-medium">Dp (EUR)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {calc.poFakultetah.map(({ fakulteta, urDt, urDi, dpZnesek }) => (
-                  <tr key={fakulteta} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-700">{fakulteta}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-600">
-                      {urDt > 0 ? formatNum(urDt) : '–'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-600">
-                      {urDi > 0 ? formatNum(urDi) : '–'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-600">
-                      {dpZnesek > 0 ? formatNum(dpZnesek) : '–'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-1">
+            {calc.poFakultetah.map(({ fakulteta, urD, dpZnesek }) => {
+              const vrednostD = urD * client.cenaDt;
+              const hasOnlyV = urD === 0 && dpZnesek === 0;
+              const parts: string[] = [];
+              if (hasOnlyV) {
+                parts.push('D 0 ur (samo V)');
+              } else {
+                if (urD > 0) parts.push(`D ${formatNum(urD)} ur = ${formatEur(vrednostD)}`);
+                if (dpZnesek > 0) parts.push(`Dp ${formatEur(dpZnesek)}`);
+              }
+              return (
+                <div key={fakulteta} className="flex items-baseline justify-between text-sm py-0.5 border-b border-gray-50">
+                  <span className="text-gray-600 mr-4 shrink-0">{fakulteta}:</span>
+                  <span className="text-gray-900 tabular-nums text-right">{parts.join(' | ')}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -113,19 +84,10 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
         {calc.znesekVzdrzevanja > 0 && (
           <Row label="Vzdrževanje:" value={formatEur(calc.znesekVzdrzevanja)} />
         )}
-        {calc.znesekGostovanja > 0 && (
-          <Row label="Gostovanje:" value={formatEur(calc.znesekGostovanja)} />
-        )}
-        {calc.urDt > 0 && (
+        {calc.urD > 0 && (
           <Row
-            label={`Skupaj Dt: ${formatNum(calc.urDt)} ur × ${client.cenaDt.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} EUR:`}
-            value={formatEur(calc.vrednostDt)}
-          />
-        )}
-        {calc.urDi > 0 && (
-          <Row
-            label={`Skupaj Di: ${formatNum(calc.urDi)} ur × ${client.cenaDi.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} EUR:`}
-            value={formatEur(calc.vrednostDi)}
+            label={`Skupaj D: ${formatNum(calc.urD)} ur × ${client.cenaDt.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} EUR:`}
+            value={formatEur(calc.vrednostD)}
           />
         )}
         {calc.vrednostDp > 0 && (

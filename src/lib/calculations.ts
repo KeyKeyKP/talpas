@@ -50,38 +50,34 @@ export function formatNum(value: number, decimals = 2): string {
 
 export function izracunajUniverza(
   entries: WorkEntry[],
-  cenaDt: number,
-  cenaDi: number,
-  znesekVzdrzevanja: number,
-  znesekGostovanja = 0
+  cenaD: number,
+  znesekVzdrzevanja: number
 ): UniversityCalc {
-  const fakulteteMap = new Map<string, { urDt: number; urDi: number; dpZnesek: number }>();
+  const fakulteteMap = new Map<string, { urD: number; dpZnesek: number }>();
 
   for (const e of entries) {
     if (!fakulteteMap.has(e.stranka)) {
-      fakulteteMap.set(e.stranka, { urDt: 0, urDi: 0, dpZnesek: 0 });
+      fakulteteMap.set(e.stranka, { urD: 0, dpZnesek: 0 });
     }
     const f = fakulteteMap.get(e.stranka)!;
-    if (e.vrstaDela === 'Dt') f.urDt += e.steviloUr;
-    if (e.vrstaDela === 'Di') f.urDi += e.steviloUr;
+    if (e.vrstaDela === 'D') f.urD += e.steviloUr;
     if (e.vrstaDela === 'Dp') f.dpZnesek += e.dpZnesek ?? 0;
+    // V entries: faculty still tracked (urD=0)
   }
 
   const poFakultetah = Array.from(fakulteteMap.entries())
     .map(([fakulteta, data]) => ({ fakulteta, ...data }));
 
-  const urDt = poFakultetah.reduce((s, f) => s + f.urDt, 0);
-  const urDi = poFakultetah.reduce((s, f) => s + f.urDi, 0);
-  const vrednostDt = urDt * cenaDt;
-  const vrednostDi = urDi * cenaDi;
+  const urD = poFakultetah.reduce((s, f) => s + f.urD, 0);
+  const vrednostD = urD * cenaD;
   const vrednostDp = poFakultetah.reduce((s, f) => s + f.dpZnesek, 0);
 
-  const skupajBrezDDV = znesekVzdrzevanja + znesekGostovanja + vrednostDt + vrednostDi + vrednostDp;
+  const skupajBrezDDV = znesekVzdrzevanja + vrednostD + vrednostDp;
   const ddv = skupajBrezDDV * DDV_STOPNJA;
 
   return {
-    urDt, urDi, vrednostDt, vrednostDi, vrednostDp,
-    znesekVzdrzevanja, znesekGostovanja,
+    urD, vrednostD, vrednostDp,
+    znesekVzdrzevanja,
     skupajBrezDDV, ddv, skupajZDDV: skupajBrezDDV + ddv,
     poFakultetah,
   };

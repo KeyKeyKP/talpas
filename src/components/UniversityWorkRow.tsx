@@ -7,8 +7,7 @@ interface Props {
 }
 
 const UNI_TYPE_STYLES: Record<string, string> = {
-  Dt: 'bg-green-100 text-green-800 border-green-300',
-  Di: 'bg-blue-100 text-blue-800 border-blue-300',
+  D: 'bg-green-100 text-green-800 border-green-300',
   Dp: 'bg-orange-100 text-orange-800 border-orange-300',
   V: 'bg-gray-100 text-gray-600 border-gray-300',
 };
@@ -25,7 +24,7 @@ export default function UniversityWorkRow({ entry, onChange }: Props) {
 
       <td className="px-3 py-2">
         <div className="flex gap-1">
-          {(['Dt', 'Di', 'Dp', 'V'] as WorkType[]).map(t => (
+          {(['D', 'V', 'Dp'] as WorkType[]).map(t => (
             <button
               key={t}
               onClick={() => setField('vrstaDela', t)}

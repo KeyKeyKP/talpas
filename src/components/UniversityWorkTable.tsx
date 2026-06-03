@@ -20,13 +20,11 @@ export default function UniversityWorkTable({ entries, onChange }: Props) {
   }
 
   const renderFakulteta = (fakulteta: string, rows: WorkEntry[]) => {
-    const dtUr = rows.filter(r => r.vrstaDela === 'Dt').reduce((s, r) => s + r.steviloUr, 0);
-    const diUr = rows.filter(r => r.vrstaDela === 'Di').reduce((s, r) => s + r.steviloUr, 0);
+    const dUr = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
     const dpCount = rows.filter(r => r.vrstaDela === 'Dp').length;
 
     const stats = [
-      dtUr > 0 && `Dt: ${dtUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
-      diUr > 0 && `Di: ${diUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
+      dUr > 0 && `D: ${dUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
       dpCount > 0 && `Dp: ${dpCount} postavk`,
     ].filter(Boolean).join(' · ');
 

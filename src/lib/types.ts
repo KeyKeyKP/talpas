@@ -73,20 +73,16 @@ export interface MonthlyHours {
 }
 
 export interface UniversityCalc {
-  urDt: number;
-  urDi: number;
-  vrednostDt: number;
-  vrednostDi: number;
+  urD: number;
+  vrednostD: number;
   vrednostDp: number;
   znesekVzdrzevanja: number;
-  znesekGostovanja: number;
   skupajBrezDDV: number;
   ddv: number;
   skupajZDDV: number;
   poFakultetah: Array<{
     fakulteta: string;
-    urDt: number;
-    urDi: number;
+    urD: number;
     dpZnesek: number;
   }>;
 }

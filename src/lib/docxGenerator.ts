@@ -249,29 +249,14 @@ export async function generateUniversityInvoice(
   metadata: InvoiceMetadata,
   basePath = '/talpas'
 ): Promise<void> {
-  const calc = izracunajUniverza(
-    entries,
-    client.cenaDt,
-    client.cenaDi,
-    metadata.znesekVzdrzevanja,
-    metadata.znesekGostovanja
-  );
+  const calc = izracunajUniverza(entries, client.cenaDt, metadata.znesekVzdrzevanja);
   const templateBuffer = await loadTemplate(basePath);
 
   const zip = new PizZip(templateBuffer);
   const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
-  // Sort faculties: Rektorat first, then others
-  const sortedFakultete = [...calc.poFakultetah].sort((a, b) => {
-    const aRek = a.fakulteta.toLowerCase().includes('rektorat') ? -1 : 0;
-    const bRek = b.fakulteta.toLowerCase().includes('rektorat') ? -1 : 0;
-    return aRek - bRek;
-  });
-
-  const opisFakultete = (name: string) =>
-    name.toLowerCase().includes('rektorat')
-      ? 'Rektorat in skupna naročila za vse članice'
-      : name;
+  // Per-faculty postavke (only faculties with D ur > 0)
+  const fakulteteZDelom = calc.poFakultetah.filter(f => f.urD > 0 || f.dpZnesek > 0);
 
   const postavke = [];
 
@@ -288,49 +273,27 @@ export async function generateUniversityInvoice(
     });
   }
 
-  if (calc.znesekGostovanja > 0) {
-    postavke.push({
-      opis: 'Gostovanje',
-      kolicina: '1',
-      enota: 'kos',
-      cena: eur(calc.znesekGostovanja),
-      vrednostBrezDDV: eur(calc.znesekGostovanja),
-      stopnjaDDV: '22',
-      ddv: eur(calc.znesekGostovanja * DDV_STOPNJA),
-      vrednostZDDV: eur(calc.znesekGostovanja * (1 + DDV_STOPNJA)),
-    });
-  }
-
-  // Per-faculty hourly and Dp lines
-  for (const { fakulteta, urDt, urDi, dpZnesek } of sortedFakultete) {
-    const label = opisFakultete(fakulteta);
-    if (urDt > 0) {
+  // "Delo {fakulteta}" for each faculty with D hours
+  for (const { fakulteta, urD } of fakulteteZDelom) {
+    if (urD > 0) {
       postavke.push({
-        opis: `Delo tehnik (${label})`,
-        kolicina: formatNum(urDt),
+        opis: `Delo ${fakulteta}`,
+        kolicina: formatNum(urD),
         enota: 'ur',
         cena: eur(client.cenaDt),
-        vrednostBrezDDV: eur(urDt * client.cenaDt),
+        vrednostBrezDDV: eur(urD * client.cenaDt),
         stopnjaDDV: '22',
-        ddv: eur(urDt * client.cenaDt * DDV_STOPNJA),
-        vrednostZDDV: eur(urDt * client.cenaDt * (1 + DDV_STOPNJA)),
+        ddv: eur(urD * client.cenaDt * DDV_STOPNJA),
+        vrednostZDDV: eur(urD * client.cenaDt * (1 + DDV_STOPNJA)),
       });
     }
-    if (urDi > 0) {
-      postavke.push({
-        opis: `Delo inženir (${label})`,
-        kolicina: formatNum(urDi),
-        enota: 'ur',
-        cena: eur(client.cenaDi),
-        vrednostBrezDDV: eur(urDi * client.cenaDi),
-        stopnjaDDV: '22',
-        ddv: eur(urDi * client.cenaDi * DDV_STOPNJA),
-        vrednostZDDV: eur(urDi * client.cenaDi * (1 + DDV_STOPNJA)),
-      });
-    }
+  }
+
+  // "Delo po ponudbi {fakulteta}" for each faculty with Dp
+  for (const { fakulteta, dpZnesek } of fakulteteZDelom) {
     if (dpZnesek > 0) {
       postavke.push({
-        opis: `Delo po ponudbi (${label})`,
+        opis: `Delo po ponudbi ${fakulteta}`,
         kolicina: '1',
         enota: 'kos',
         cena: eur(dpZnesek),
@@ -342,7 +305,7 @@ export async function generateUniversityInvoice(
     }
   }
 
-  // Per-faculty appendix sections
+  // Per-faculty appendix sections (all entries incl. V, sorted by date desc)
   const sortedEntries = [...entries].sort((a, b) => b.datum.getTime() - a.datum.getTime());
   const byFakulteta: Record<string, WorkEntry[]> = {};
   for (const e of sortedEntries) {
@@ -351,10 +314,9 @@ export async function generateUniversityInvoice(
   }
 
   const prilogaSekcije = Object.entries(byFakulteta).map(([fakulteta, rows]) => {
-    const dtUr = rows.filter(r => r.vrstaDela === 'Dt').reduce((s, r) => s + r.steviloUr, 0);
-    const diUr = rows.filter(r => r.vrstaDela === 'Di').reduce((s, r) => s + r.steviloUr, 0);
+    const dUr = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
     return {
-      naslov: fakulteta,
+      naslov: `${metadata.stevilkaRacuna} – ${fakulteta}`,
       vrstice: rows.map(e => ({
         delo: e.delo ?? '',
         datum: formatDateSl(e.datum),
@@ -364,21 +326,9 @@ export async function generateUniversityInvoice(
         opis: e.opis ?? '',
         opravil: e.opravil ?? '',
       })),
-      skupajUrDt: formatNum(dtUr),
-      skupajUrDi: formatNum(diUr),
+      skupajUrDt: formatNum(dUr),
+      skupajUrDi: '',
     };
-  });
-
-  // Final summary section for appendix
-  prilogaSekcije.push({
-    naslov: 'SKUPAJ ZA OBRAČUN',
-    vrstice: [
-      { delo: `D tehnik: ${formatNum(calc.urDt)} ur`, datum: '', kontakt: '', vrstaDela: '', steviloUr: '', opis: '', opravil: '' },
-      { delo: `D inženir: ${formatNum(calc.urDi)} ur`, datum: '', kontakt: '', vrstaDela: '', steviloUr: '', opis: '', opravil: '' },
-      ...(calc.vrednostDp > 0 ? [{ delo: `Dp skupaj: ${eur(calc.vrednostDp)} EUR`, datum: '', kontakt: '', vrstaDela: '', steviloUr: '', opis: '', opravil: '' }] : []),
-    ],
-    skupajUrDt: '',
-    skupajUrDi: '',
   });
 
   doc.render({
@@ -410,17 +360,18 @@ export async function generateUniversityInvoice(
     ddvVzdrzevanje: eur(calc.znesekVzdrzevanja * DDV_STOPNJA),
     vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja * (1 + DDV_STOPNJA)),
 
-    urDt: formatNum(calc.urDt),
+    // urDt/urDi placeholders: map D→Dt for template compatibility
+    urDt: formatNum(calc.urD),
     cenaDt: eur(client.cenaDt),
-    vrednostDt: eur(calc.vrednostDt),
-    ddvDt: eur(calc.vrednostDt * DDV_STOPNJA),
-    dtZDDV: eur(calc.vrednostDt * (1 + DDV_STOPNJA)),
+    vrednostDt: eur(calc.vrednostD),
+    ddvDt: eur(calc.vrednostD * DDV_STOPNJA),
+    dtZDDV: eur(calc.vrednostD * (1 + DDV_STOPNJA)),
 
-    urDi: formatNum(calc.urDi),
-    cenaDi: eur(client.cenaDi),
-    vrednostDi: eur(calc.vrednostDi),
-    ddvDi: eur(calc.vrednostDi * DDV_STOPNJA),
-    diZDDV: eur(calc.vrednostDi * (1 + DDV_STOPNJA)),
+    urDi: '0,00',
+    cenaDi: eur(0),
+    vrednostDi: eur(0),
+    ddvDi: eur(0),
+    diZDDV: eur(0),
 
     vrednostDp: eur(calc.vrednostDp),
     ddvDp: eur(calc.vrednostDp * DDV_STOPNJA),
@@ -439,25 +390,15 @@ export async function generateUniversityInvoice(
       ddvVzdrzevanje: eur(calc.znesekVzdrzevanja * DDV_STOPNJA),
       vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja * (1 + DDV_STOPNJA)),
     }] : [],
-    dtArr: calc.urDt > 0 ? [{
-      urDt: formatNum(calc.urDt),
+    dtArr: calc.urD > 0 ? [{
+      urDt: formatNum(calc.urD),
       cenaDt: eur(client.cenaDt),
-      vrednostDt: eur(calc.vrednostDt),
-      ddvDt: eur(calc.vrednostDt * DDV_STOPNJA),
-      dtZDDV: eur(calc.vrednostDt * (1 + DDV_STOPNJA)),
+      vrednostDt: eur(calc.vrednostD),
+      ddvDt: eur(calc.vrednostD * DDV_STOPNJA),
+      dtZDDV: eur(calc.vrednostD * (1 + DDV_STOPNJA)),
     }] : [],
-    diArr: calc.urDi > 0 ? [{
-      urDi: formatNum(calc.urDi),
-      cenaDi: eur(client.cenaDi),
-      vrednostDi: eur(calc.vrednostDi),
-      ddvDi: eur(calc.vrednostDi * DDV_STOPNJA),
-      diZDDV: eur(calc.vrednostDi * (1 + DDV_STOPNJA)),
-    }] : [],
-    gostovanjeArr: calc.znesekGostovanja > 0 ? [{
-      znesekGostovanja: eur(calc.znesekGostovanja),
-      ddvGostovanja: eur(calc.znesekGostovanja * DDV_STOPNJA),
-      gostovanjeZDDV: eur(calc.znesekGostovanja * (1 + DDV_STOPNJA)),
-    }] : [],
+    diArr: [],
+    gostovanjeArr: [],
     dpArr: calc.vrednostDp > 0 ? [{
       vrednostDp: eur(calc.vrednostDp),
       ddvDp: eur(calc.vrednostDp * DDV_STOPNJA),
@@ -468,8 +409,8 @@ export async function generateUniversityInvoice(
     prilogaVrstice: [],
     isUmbrella: true,
     prilogaSekcije,
-    skupajUrDt: formatNum(calc.urDt),
-    skupajUrDi: formatNum(calc.urDi),
+    skupajUrDt: formatNum(calc.urD),
+    skupajUrDi: '0,00',
   });
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
