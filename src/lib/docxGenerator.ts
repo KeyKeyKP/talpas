@@ -241,7 +241,15 @@ export async function generateDocx(
     skupajUrDi: dec(calc.urDi),
   };
   console.log('TEMPLATE DATA:', JSON.stringify(data, null, 2));
-  doc.render(data);
+  try {
+    doc.render(data);
+  } catch (error: unknown) {
+    const e = error as { properties?: { errors?: unknown } };
+    if (e.properties?.errors) {
+      console.error('Template render errors:', JSON.stringify(e.properties.errors, null, 2));
+    }
+    throw error;
+  }
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
@@ -400,7 +408,15 @@ export async function generateUniversityInvoice(
     skupajUrDi: '0',
   };
   console.log('TEMPLATE DATA (uni):', JSON.stringify(uniData, null, 2));
-  doc.render(uniData);
+  try {
+    doc.render(uniData);
+  } catch (error: unknown) {
+    const e = error as { properties?: { errors?: unknown } };
+    if (e.properties?.errors) {
+      console.error('Template render errors (uni):', JSON.stringify(e.properties.errors, null, 2));
+    }
+    throw error;
+  }
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
