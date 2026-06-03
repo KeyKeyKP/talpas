@@ -50,30 +50,40 @@ export function formatNum(value: number, decimals = 2): string {
 
 export function izracunajUniverza(
   entries: WorkEntry[],
-  cenaDodatno: number,
-  znesekVzdrzevanja: number
+  cenaDt: number,
+  cenaDi: number,
+  znesekVzdrzevanja: number,
+  znesekGostovanja = 0
 ): UniversityCalc {
-  const dEntries = entries.filter(e => e.vrstaDela === 'D');
-  const dpEntries = entries.filter(e => e.vrstaDela === 'Dp');
+  const fakulteteMap = new Map<string, { urDt: number; urDi: number; dpZnesek: number }>();
 
-  const urD = dEntries.reduce((s, e) => s + e.steviloUr, 0);
-  const vrednostD = urD * cenaDodatno;
-
-  const dpMap = new Map<string, number>();
-  for (const e of dpEntries) {
-    dpMap.set(e.stranka, (dpMap.get(e.stranka) ?? 0) + (e.dpZnesek ?? 0));
+  for (const e of entries) {
+    if (!fakulteteMap.has(e.stranka)) {
+      fakulteteMap.set(e.stranka, { urDt: 0, urDi: 0, dpZnesek: 0 });
+    }
+    const f = fakulteteMap.get(e.stranka)!;
+    if (e.vrstaDela === 'Dt') f.urDt += e.steviloUr;
+    if (e.vrstaDela === 'Di') f.urDi += e.steviloUr;
+    if (e.vrstaDela === 'Dp') f.dpZnesek += e.dpZnesek ?? 0;
   }
-  const dpPoFakultetah = Array.from(dpMap.entries())
-    .map(([fakulteta, znesek]) => ({ fakulteta, znesek }))
-    .filter(f => f.znesek > 0);
-  const vrednostDp = dpPoFakultetah.reduce((s, f) => s + f.znesek, 0);
 
-  const skupajBrezDDV = znesekVzdrzevanja + vrednostD + vrednostDp;
+  const poFakultetah = Array.from(fakulteteMap.entries())
+    .map(([fakulteta, data]) => ({ fakulteta, ...data }));
+
+  const urDt = poFakultetah.reduce((s, f) => s + f.urDt, 0);
+  const urDi = poFakultetah.reduce((s, f) => s + f.urDi, 0);
+  const vrednostDt = urDt * cenaDt;
+  const vrednostDi = urDi * cenaDi;
+  const vrednostDp = poFakultetah.reduce((s, f) => s + f.dpZnesek, 0);
+
+  const skupajBrezDDV = znesekVzdrzevanja + znesekGostovanja + vrednostDt + vrednostDi + vrednostDp;
   const ddv = skupajBrezDDV * DDV_STOPNJA;
 
   return {
-    urD, vrednostD, dpPoFakultetah, vrednostDp,
-    znesekVzdrzevanja, skupajBrezDDV, ddv, skupajZDDV: skupajBrezDDV + ddv,
+    urDt, urDi, vrednostDt, vrednostDi, vrednostDp,
+    znesekVzdrzevanja, znesekGostovanja,
+    skupajBrezDDV, ddv, skupajZDDV: skupajBrezDDV + ddv,
+    poFakultetah,
   };
 }
 

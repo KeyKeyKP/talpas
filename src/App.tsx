@@ -9,13 +9,11 @@ import UniversityUpload from './components/UniversityUpload';
 import UniversityWorkTable from './components/UniversityWorkTable';
 import UniversityInvoiceSummary from './components/UniversityInvoiceSummary';
 import UniversityExportButton from './components/UniversityExportButton';
-import UniClientSelector from './components/UniClientSelector';
 import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
-import { loadClientRegister, findClientWithRegister, getUniverzaForStranka } from './lib/clientRegister';
-import { DEFAULT_CENA_DT } from './config/constants';
+import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka } from './lib/clientRegister';
 
 function fmtDate(d: Date) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -52,16 +50,13 @@ export default function App() {
   // University flow
   const [uniMode, setUniMode] = useState(false);
   const [uniAllEntries, setUniAllEntries] = useState<WorkEntry[]>([]);
-  const [uniAllStranke, setUniAllStranke] = useState<Array<{ name: string; count: number }>>([]);
   const [uniSelectedType, setUniSelectedType] = useState<'UP' | 'UL'>('UP');
-  const [uniSelectedStranka, setUniSelectedStranka] = useState<string | null>(null);
   const [uniEntries, setUniEntries] = useState<WorkEntry[]>([]);
   const [uniClient, setUniClient] = useState<ClientConfig | undefined>();
   const [uniMetadata, setUniMetadata] = useState<InvoiceMetadata>({
     ...EMPTY_METADATA,
     opisVzdrzevanja: 'Vzdrževanje po pogodbi',
   });
-  const [cenaDodatno, setCenaDodatno] = useState(DEFAULT_CENA_DT);
   const [exportedStranke, setExportedStranke] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadClientRegister('/talpas'); }, []);
@@ -81,34 +76,26 @@ export default function App() {
     }
   };
 
-  const handleUniversityFile = async (file: File, uniType: 'UP' | 'UL') => {
-    try {
-      const parsed = await parseExcel(file);
-      setUniAllEntries(parsed);
-      setUniAllStranke(getStrankeStats(parsed));
-      setUniSelectedType(uniType);
-      setUniSelectedStranka(null);
-      setUniEntries([]);
-      setUniClient(undefined);
-      setUniMode(true);
-      setStep(2);
-    } catch (e) {
-      alert('Napaka pri branju datoteke: ' + String(e));
-    }
+  const filterForUniType = (allEntries: WorkEntry[], uniType: 'UP' | 'UL'): WorkEntry[] => {
+    return allEntries.filter(e => {
+      if (isUniStranka(e.stranka, uniType)) return true;
+      // Fallback: skupina field (handles register not yet loaded)
+      if (e.skupina) {
+        const grp = e.skupina.toLowerCase();
+        if (uniType === 'UP' && grp.includes('primorsk')) return true;
+        if (uniType === 'UL' && grp.includes('ljubljan')) return true;
+      }
+      return false;
+    });
   };
 
-  const handleSelectUniStranka = (stranka: string) => {
-    setUniSelectedStranka(stranka);
-
-    const clientId = uniSelectedType === 'UP' ? 'up' : 'ul';
+  const applyUniType = (allEntries: WorkEntry[], uniType: 'UP' | 'UL') => {
+    const clientId = uniType === 'UP' ? 'up' : 'ul';
     const foundClient = CLIENTS.find(c => c.id === clientId);
-    setUniClient(foundClient);
+    const filtered = filterForUniType(allEntries, uniType);
 
-    const filtered = uniAllEntries.filter(e => {
-      const key = (e.skupina || e.stranka).toLowerCase().trim();
-      const target = stranka.toLowerCase().trim();
-      return key === target || key.includes(target) || target.includes(key);
-    });
+    setUniSelectedType(uniType);
+    setUniClient(foundClient);
     setUniEntries(filtered);
 
     const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
@@ -127,6 +114,22 @@ export default function App() {
       obdobjeOd,
       obdobjeDo,
     }));
+  };
+
+  const handleUniversityFile = async (file: File, uniType: 'UP' | 'UL') => {
+    try {
+      const parsed = await parseExcel(file);
+      setUniAllEntries(parsed);
+      setUniMode(true);
+      applyUniType(parsed, uniType);
+      setStep(3);
+    } catch (e) {
+      alert('Napaka pri branju datoteke: ' + String(e));
+    }
+  };
+
+  const handleUniTypeChange = (uniType: 'UP' | 'UL') => {
+    applyUniType(uniAllEntries, uniType);
   };
 
   const handleSelectStranka = (stranka: string, _passedConfig: ClientConfig | undefined) => {
@@ -203,20 +206,16 @@ export default function App() {
     // University
     setUniMode(false);
     setUniAllEntries([]);
-    setUniAllStranke([]);
     setUniSelectedType('UP');
-    setUniSelectedStranka(null);
     setUniEntries([]);
     setUniClient(undefined);
     setUniMetadata({ ...EMPTY_METADATA, opisVzdrzevanja: 'Vzdrževanje po pogodbi' });
-    setCenaDodatno(DEFAULT_CENA_DT);
     setExportedStranke(new Set());
   };
 
   const steps = uniMode
     ? [
         { n: 1, label: 'Uvoz Excel' },
-        { n: 2, label: 'Izbira stranke' },
         { n: 3, label: 'Tabela del' },
         { n: 4, label: 'Povzetek' },
         { n: 5, label: 'Izvoz' },
@@ -237,12 +236,10 @@ export default function App() {
           <div className="font-bold text-xl text-blue-700">TALPAS</div>
           <div className="text-gray-400">|</div>
           <div className="text-gray-600 text-sm">Obračun vzdrževalnih del</div>
-          {uniMode && (
+          {uniMode && uniClient && (
             <>
               <div className="text-gray-400">|</div>
-              <div className="text-sm font-medium text-purple-700">
-                {uniSelectedStranka ?? uniSelectedType}
-              </div>
+              <div className="text-sm font-medium text-purple-700">{uniClient.imeNaRacunu}</div>
             </>
           )}
           {!uniMode && selectedStranka && (
@@ -316,34 +313,33 @@ export default function App() {
           </div>
         )}
 
-        {/* Step 2: Client selection (university) */}
-        {step >= 2 && uniMode && (
-          <div>
-            <UniClientSelector
-              allStranke={uniAllStranke}
-              selectedType={uniSelectedType}
-              selected={uniSelectedStranka}
-              onTypeChange={setUniSelectedType}
-              onSelect={handleSelectUniStranka}
-            />
-            {uniSelectedStranka && step === 2 && (
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setStep(3)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  Nadaljuj →
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Step 3: Work table */}
         {step >= 3 && (
           <div>
             {uniMode ? (
-              <UniversityWorkTable entries={uniEntries} onChange={setUniEntries} />
+              <div className="space-y-3">
+                {/* UP/UL dropdown above the work table */}
+                <div className="bg-white rounded-xl shadow px-6 py-4 flex items-center gap-6">
+                  <span className="text-sm font-medium text-gray-600">Univerza:</span>
+                  {(['UP', 'UL'] as const).map(t => (
+                    <label key={t} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="uniTypeFilter"
+                        value={t}
+                        checked={uniSelectedType === t}
+                        onChange={() => handleUniTypeChange(t)}
+                        className="accent-purple-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        {t === 'UP' ? 'UP – Univerza na Primorskem' : 'UL – Univerza v Ljubljani'}
+                      </span>
+                    </label>
+                  ))}
+                  <span className="text-xs text-gray-400 ml-auto">{uniEntries.length} vnosov</span>
+                </div>
+                <UniversityWorkTable entries={uniEntries} onChange={setUniEntries} />
+              </div>
             ) : (
               client && (
                 <WorkTable
@@ -375,9 +371,7 @@ export default function App() {
                   entries={uniEntries}
                   client={uniClient}
                   metadata={uniMetadata}
-                  cenaDodatno={cenaDodatno}
                   onMetadataChange={setUniMetadata}
-                  onCenaDodatnoChange={setCenaDodatno}
                 />
               )
             ) : (
@@ -415,7 +409,6 @@ export default function App() {
                 entries={uniEntries}
                 client={uniClient}
                 metadata={uniMetadata}
-                cenaDodatno={cenaDodatno}
               />
             )
           ) : (

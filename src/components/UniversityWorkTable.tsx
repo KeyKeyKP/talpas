@@ -20,17 +20,21 @@ export default function UniversityWorkTable({ entries, onChange }: Props) {
   }
 
   const renderFakulteta = (fakulteta: string, rows: WorkEntry[]) => {
-    const dUr = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
+    const dtUr = rows.filter(r => r.vrstaDela === 'Dt').reduce((s, r) => s + r.steviloUr, 0);
+    const diUr = rows.filter(r => r.vrstaDela === 'Di').reduce((s, r) => s + r.steviloUr, 0);
     const dpCount = rows.filter(r => r.vrstaDela === 'Dp').length;
+
+    const stats = [
+      dtUr > 0 && `Dt: ${dtUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
+      diUr > 0 && `Di: ${diUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
+      dpCount > 0 && `Dp: ${dpCount} postavk`,
+    ].filter(Boolean).join(' · ');
 
     return (
       <div key={fakulteta} className="mb-6">
         <div className="bg-purple-800 text-white text-sm font-semibold px-4 py-2 rounded-t-lg flex items-center justify-between">
           <span>{fakulteta}</span>
-          <span className="text-purple-200 text-xs font-normal">
-            D: {dUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur
-            {dpCount > 0 && ` · Dp: ${dpCount} postavk`}
-          </span>
+          <span className="text-purple-200 text-xs font-normal">{stats}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm table-fixed">

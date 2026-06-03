@@ -92,6 +92,10 @@ export function getUniverzaForStranka(name: string): 'UL' | 'UP' | '' {
   return findInRegister(name)?.univerza ?? '';
 }
 
+export function isUniStranka(name: string, uniType: 'UP' | 'UL'): boolean {
+  return findInRegister(name)?.univerza === uniType;
+}
+
 export function findClientWithRegister(strankaName: string): ClientConfig | undefined {
   const regEntry = findInRegister(strankaName);
   const lower = strankaName.toLowerCase().trim();
