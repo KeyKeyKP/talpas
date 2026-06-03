@@ -36,54 +36,119 @@ function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): 
     byFakulteta.get(key)!.push(e);
   }
 
-  const borders = '<w:tblBorders>' +
-    '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
-    '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
-    '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
-    '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
-    '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
-    '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
-    '</w:tblBorders>';
+  // Exact table properties from standard template appendix
+  const tblPr =
+    '<w:tblPr>' +
+    '<w:tblW w:w="11311" w:type="dxa"/>' +
+    '<w:tblInd w:w="-497" w:type="dxa"/>' +
+    '<w:tblLayout w:type="fixed"/>' +
+    '<w:tblCellMar><w:left w:w="70" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tblCellMar>' +
+    '</w:tblPr>';
 
-  const cell = (text: string, bold = false) => {
-    const rPr = bold
-      ? '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>'
-      : '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>';
-    return `<w:tc><w:p><w:r>${rPr}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r></w:p></w:tc>`;
-  };
+  const tblGrid =
+    '<w:tblGrid>' +
+    '<w:gridCol w:w="1870"/><w:gridCol w:w="870"/><w:gridCol w:w="1200"/>' +
+    '<w:gridCol w:w="1134"/><w:gridCol w:w="574"/><w:gridCol w:w="4387"/>' +
+    '<w:gridCol w:w="1276"/>' +
+    '</w:tblGrid>';
+
+  const cols = [1870, 870, 1200, 1134, 574, 4387, 1276];
+  const F = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>';
+
+  // Header cell: italic, top+bottom border, vAlign=bottom
+  const hdrCell = (w: number, text: string) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>` +
+    '<w:tcBorders>' +
+    '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+    '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+    '</w:tcBorders><w:vAlign w:val="bottom"/></w:tcPr>' +
+    `<w:p><w:pPr><w:rPr>${F}<w:i/><w:iCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:pPr>` +
+    `<w:r><w:rPr>${F}<w:i/><w:iCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>` +
+    `<w:t>${xmlEsc(text)}</w:t></w:r></w:p></w:tc>`;
+
+  // Data cell: no italic, bottom border only
+  const dataCell = (w: number, text: string) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>` +
+    '<w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:tcBorders></w:tcPr>' +
+    `<w:p><w:pPr><w:rPr>${F}<w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:pPr>` +
+    `<w:r><w:rPr>${F}<w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>` +
+    `<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r></w:p></w:tc>`;
+
+  // Summary cell: bCs, bottom border
+  const sumCell = (w: number, text: string) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>` +
+    '<w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:tcBorders></w:tcPr>' +
+    `<w:p><w:pPr><w:rPr>${F}<w:bCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:pPr>` +
+    (text
+      ? `<w:r><w:rPr>${F}<w:bCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>` +
+        `<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`
+      : '') +
+    '</w:p></w:tc>';
+
+  // Title paragraph style (same as standard: bold, sz=22, ind=-567)
+  const titleRPr = `<w:rPr>${F}<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>`;
+  const titlePPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="-567" w:end="0"/>${titleRPr}</w:pPr>`;
 
   let xml = '';
 
   for (const [fakulteta, rows] of byFakulteta) {
     const skupajUrD = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
 
+    // Page break
     xml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 
-    xml += '<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr>' +
-      '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>' +
-      '<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>' +
-      `<w:t>Priloga računa št. ${xmlEsc(stevilkaRacuna)} – ${xmlEsc(fakulteta)}</w:t></w:r></w:p>`;
+    // Title: "Priloga računa št. XXXX"
+    xml += `<w:p>${titlePPr}<w:r>${titleRPr}<w:t>Priloga računa št. ${xmlEsc(stevilkaRacuna)}</w:t></w:r></w:p>`;
 
-    xml += '<w:p/>';
+    // Faculty name (bold, sz=20, same indent)
+    const facRPr = `<w:rPr>${F}<w:b/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
+    const facPPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="-567" w:end="0"/>${facRPr}</w:pPr>`;
+    xml += `<w:p>${facPPr}<w:r>${facRPr}<w:t>${xmlEsc(fakulteta)}</w:t></w:r></w:p>`;
 
-    const hdr = '<w:tr><w:trPr><w:tblHeader/></w:trPr>' +
-      cell('Delo', true) + cell('Datum', true) + cell('Kontakt', true) +
-      cell('Vrsta dela', true) + cell('Ur', true) + cell('Opis', true) + cell('Opravil', true) +
+    // Spacing paragraph (4pt, same as original)
+    xml += '<w:p><w:pPr><w:rPr><w:sz w:val="8"/><w:szCs w:val="8"/></w:rPr></w:pPr></w:p>';
+
+    // Header row (italic, top+bottom border, height 446)
+    const hdrRow =
+      '<w:tr><w:trPr><w:trHeight w:val="446"/></w:trPr>' +
+      hdrCell(cols[0], 'Delo') +
+      hdrCell(cols[1], 'Datum') +
+      hdrCell(cols[2], 'Kontakt') +
+      hdrCell(cols[3], 'Vrsta dela') +
+      hdrCell(cols[4], 'Ur') +
+      hdrCell(cols[5], 'Opis') +
+      hdrCell(cols[6], 'Opravil') +
       '</w:tr>';
 
+    // Data rows (bottom border only, height 594)
     const dataRows = rows.map(e =>
-      '<w:tr>' +
-      cell(e.delo ?? '') + cell(formatDateSl(e.datum)) + cell(e.kontakt ?? '') +
-      cell(e.vrstaDela ?? '') + cell(dec(e.steviloUr)) + cell(e.opis ?? '') + cell(e.opravil ?? '') +
+      '<w:tr><w:trPr><w:trHeight w:val="594"/></w:trPr>' +
+      dataCell(cols[0], e.delo ?? '') +
+      dataCell(cols[1], formatDateSl(e.datum)) +
+      dataCell(cols[2], e.kontakt ?? '') +
+      dataCell(cols[3], e.vrstaDela ?? '') +
+      dataCell(cols[4], dec(e.steviloUr)) +
+      dataCell(cols[5], e.opis ?? '') +
+      dataCell(cols[6], e.opravil ?? '') +
       '</w:tr>'
     ).join('');
 
-    xml += `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>${borders}</w:tblPr><w:tblGrid/>${hdr}${dataRows}</w:tbl>`;
+    // Summary row (height 70, bCs style)
+    const sumRow =
+      '<w:tr><w:trPr><w:trHeight w:val="70"/></w:trPr>' +
+      sumCell(cols[0], 'Skupaj ur') +
+      sumCell(cols[1], '') +
+      sumCell(cols[2], '') +
+      sumCell(cols[3], 'D') +
+      sumCell(cols[4], dec(skupajUrD)) +
+      sumCell(cols[5], '') +
+      sumCell(cols[6], '') +
+      '</w:tr>';
 
-    xml += '<w:p><w:r>' +
-      '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>' +
-      '<w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>' +
-      `<w:t>Skupaj: D ${xmlEsc(dec(skupajUrD))} ur</w:t></w:r></w:p>`;
+    xml += `<w:tbl>${tblPr}${tblGrid}${hdrRow}${dataRows}${sumRow}</w:tbl>`;
+
+    // Spacing after table
+    xml += '<w:p><w:pPr><w:rPr><w:sz w:val="8"/><w:szCs w:val="8"/></w:rPr></w:pPr></w:p>';
   }
 
   return xml;
