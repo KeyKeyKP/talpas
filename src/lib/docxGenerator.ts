@@ -9,6 +9,11 @@ function eur(v: number) {
   return v.toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Format hours/quantities without trailing zeros: 7.5 → "7,5", 2.0 → "2", 7.25 → "7,25"
+function dec(v: number) {
+  return v.toLocaleString('sl-SI', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function formatDateSl(d: Date) {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
@@ -108,12 +113,12 @@ export async function generateDocx(
           datum: formatDateSl(e.datum),
           kontakt: e.kontakt ?? '',
           vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
-          steviloUr: formatNum(e.steviloUr),
+          steviloUr: dec(e.steviloUr),
           opis: e.opis ?? '',
           opravil: e.opravil ?? '',
         })),
-        skupajUrDt: formatNum(dtUr),
-        skupajUrDi: formatNum(diUr),
+        skupajUrDt: dec(dtUr),
+        skupajUrDi: dec(diUr),
       });
     }
   }
@@ -123,7 +128,7 @@ export async function generateDocx(
     datum: formatDateSl(e.datum),
     kontakt: e.kontakt ?? '',
     vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
-    steviloUr: formatNum(e.steviloUr),
+    steviloUr: dec(e.steviloUr),
     opis: e.opis ?? '',
     opravil: e.opravil ?? '',
   }));
@@ -149,7 +154,7 @@ export async function generateDocx(
 
     // Metadata računa
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
-    sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
+    sklic: metadata.stevilkaRacuna ?? '',
     datumRacuna: metadata.datumRacuna ?? '',
     rokPlacila: metadata.rokPlacila ?? '',
     obdobjeOd: metadata.obdobjeOd ?? '',
@@ -199,7 +204,7 @@ export async function generateDocx(
 
     // Delo tehnik – conditional row (empty array = hidden)
     dtArr: calc.urDt > 0 ? [{
-      urDt: formatNum(calc.urDt),
+      urDt: dec(calc.urDt),
       cenaDt: eur(client.cenaDt),
       vrednostDt: eur(calc.vrednostDt),
       ddvDt: eur(calc.ddvDt),
@@ -208,7 +213,7 @@ export async function generateDocx(
 
     // Delo inženir – conditional row (empty array = hidden)
     diArr: calc.urDi > 0 ? [{
-      urDi: formatNum(calc.urDi),
+      urDi: dec(calc.urDi),
       cenaDi: eur(client.cenaDi),
       vrednostDi: eur(calc.vrednostDi),
       ddvDi: eur(calc.ddvDi),
@@ -235,8 +240,8 @@ export async function generateDocx(
     prilogaVrstice,
     isUmbrella,
     prilogaSekcije,
-    skupajUrDt: formatNum(calc.urDt),
-    skupajUrDi: formatNum(calc.urDi),
+    skupajUrDt: dec(calc.urDt),
+    skupajUrDi: dec(calc.urDi),
   });
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -322,11 +327,11 @@ export async function generateUniversityInvoice(
         datum: formatDateSl(e.datum),
         kontakt: e.kontakt ?? '',
         vrstaDela: e.vrstaDela ?? '',
-        steviloUr: formatNum(e.steviloUr),
+        steviloUr: dec(e.steviloUr),
         opis: e.opis ?? '',
         opravil: e.opravil ?? '',
       })),
-      skupajUrDt: formatNum(dUr),
+      skupajUrDt: dec(dUr),
       skupajUrDi: '',
     };
   });
@@ -349,7 +354,7 @@ export async function generateUniversityInvoice(
     idDDV: client.idDDV ?? '',
 
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
-    sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
+    sklic: metadata.stevilkaRacuna ?? '',
     datumRacuna: metadata.datumRacuna ?? '',
     rokPlacila: metadata.rokPlacila ?? '',
     obdobjeOd: metadata.obdobjeOd ?? '',
@@ -391,7 +396,7 @@ export async function generateUniversityInvoice(
       vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja * (1 + DDV_STOPNJA)),
     }] : [],
     dtArr: calc.urD > 0 ? [{
-      urDt: formatNum(calc.urD),
+      urDt: dec(calc.urD),
       cenaDt: eur(client.cenaDt),
       vrednostDt: eur(calc.vrednostD),
       ddvDt: eur(calc.vrednostD * DDV_STOPNJA),
@@ -409,8 +414,8 @@ export async function generateUniversityInvoice(
     prilogaVrstice: [],
     isUmbrella: true,
     prilogaSekcije,
-    skupajUrDt: formatNum(calc.urD),
-    skupajUrDi: '0,00',
+    skupajUrDt: dec(calc.urD),
+    skupajUrDi: '0',
   });
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
