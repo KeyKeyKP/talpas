@@ -33,12 +33,6 @@ export async function generateDocx(
   const calc = izracunaj(entries, client, metadata.znesekVzdrzevanja, metadata.znesekGostovanja);
   const templateBuffer = await loadTemplate(basePath);
 
-  const zip = new PizZip(templateBuffer);
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-  });
-
   // Postavke za tabelo računa
   const postavke = [];
   if (calc.znesekVzdrzevanja > 0) {
@@ -241,18 +235,20 @@ export async function generateDocx(
     skupajUrDi: dec(calc.urDi),
   };
   console.log('TEMPLATE DATA:', JSON.stringify(data, null, 2));
+  const zip = new PizZip(templateBuffer);
   try {
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
     doc.render(data);
+    const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
   } catch (error: unknown) {
-    const e = error as { properties?: { errors?: unknown } };
+    const e = error as { properties?: { errors?: unknown }; message?: string };
+    console.error('Docx error:', e.message);
     if (e.properties?.errors) {
-      console.error('Template render errors:', JSON.stringify(e.properties.errors, null, 2));
+      console.error('Template errors:', JSON.stringify(e.properties.errors, null, 2));
     }
     throw error;
   }
-
-  const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-  saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
 }
 
 export async function generateUniversityInvoice(
@@ -263,9 +259,6 @@ export async function generateUniversityInvoice(
 ): Promise<void> {
   const calc = izracunajUniverza(entries, client.cenaDt, metadata.znesekVzdrzevanja);
   const templateBuffer = await loadTemplate(basePath);
-
-  const zip = new PizZip(templateBuffer);
-  const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
   // Per-faculty postavke (only faculties with D ur > 0)
   const fakulteteZDelom = calc.poFakultetah.filter(f => f.urD > 0 || f.dpZnesek > 0);
@@ -408,16 +401,18 @@ export async function generateUniversityInvoice(
     skupajUrDi: '0',
   };
   console.log('TEMPLATE DATA (uni):', JSON.stringify(uniData, null, 2));
+  const zip = new PizZip(templateBuffer);
   try {
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
     doc.render(uniData);
+    const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
   } catch (error: unknown) {
-    const e = error as { properties?: { errors?: unknown } };
+    const e = error as { properties?: { errors?: unknown }; message?: string };
+    console.error('Docx error (uni):', e.message);
     if (e.properties?.errors) {
-      console.error('Template render errors (uni):', JSON.stringify(e.properties.errors, null, 2));
+      console.error('Template errors (uni):', JSON.stringify(e.properties.errors, null, 2));
     }
     throw error;
   }
-
-  const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-  saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
 }
