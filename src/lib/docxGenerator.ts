@@ -133,7 +133,7 @@ export async function generateDocx(
     opravil: e.opravil ?? '',
   }));
 
-  doc.render({
+  const data = {
     // Izdajatelj
     izdajatelj_ime: IZDAJATELJ.ime ?? '',
     izdajatelj_naslov: IZDAJATELJ.naslov ?? '',
@@ -237,12 +237,11 @@ export async function generateDocx(
     // Priloga
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
     priloga: prilogaVrstice,
-    prilogaVrstice,
-    isUmbrella,
-    prilogaSekcije,
     skupajUrDt: dec(calc.urDt),
     skupajUrDi: dec(calc.urDi),
-  });
+  };
+  console.log('TEMPLATE DATA:', JSON.stringify(data, null, 2));
+  doc.render(data);
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
@@ -310,33 +309,9 @@ export async function generateUniversityInvoice(
     }
   }
 
-  // Per-faculty appendix sections (all entries incl. V, sorted by date desc)
   const sortedEntries = [...entries].sort((a, b) => b.datum.getTime() - a.datum.getTime());
-  const byFakulteta: Record<string, WorkEntry[]> = {};
-  for (const e of sortedEntries) {
-    if (!byFakulteta[e.stranka]) byFakulteta[e.stranka] = [];
-    byFakulteta[e.stranka].push(e);
-  }
 
-  const prilogaSekcije = Object.entries(byFakulteta).map(([fakulteta, rows]) => {
-    const dUr = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
-    return {
-      naslov: `${metadata.stevilkaRacuna} – ${fakulteta}`,
-      vrstice: rows.map(e => ({
-        delo: e.delo ?? '',
-        datum: formatDateSl(e.datum),
-        kontakt: e.kontakt ?? '',
-        vrstaDela: e.vrstaDela ?? '',
-        steviloUr: dec(e.steviloUr),
-        opis: e.opis ?? '',
-        opravil: e.opravil ?? '',
-      })),
-      skupajUrDt: dec(dUr),
-      skupajUrDi: '',
-    };
-  });
-
-  doc.render({
+  const uniData = {
     izdajatelj_ime: IZDAJATELJ.ime ?? '',
     izdajatelj_naslov: IZDAJATELJ.naslov ?? '',
     izdajatelj_idDDV: IZDAJATELJ.idDDV ?? '',
@@ -411,12 +386,21 @@ export async function generateUniversityInvoice(
     }] : [],
 
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
-    prilogaVrstice: [],
-    isUmbrella: true,
-    prilogaSekcije,
+    // Template uses {#priloga} — flatten all entries for the appendix
+    priloga: sortedEntries.map(e => ({
+      delo: e.delo ?? '',
+      datum: formatDateSl(e.datum),
+      kontakt: e.kontakt ?? '',
+      vrstaDela: e.vrstaDela ?? '',
+      steviloUr: dec(e.steviloUr),
+      opis: e.opis ?? '',
+      opravil: e.opravil ?? '',
+    })),
     skupajUrDt: dec(calc.urD),
     skupajUrDi: '0',
-  });
+  };
+  console.log('TEMPLATE DATA (uni):', JSON.stringify(uniData, null, 2));
+  doc.render(uniData);
 
   const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
