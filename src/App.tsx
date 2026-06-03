@@ -9,11 +9,12 @@ import UniversityUpload from './components/UniversityUpload';
 import UniversityWorkTable from './components/UniversityWorkTable';
 import UniversityInvoiceSummary from './components/UniversityInvoiceSummary';
 import UniversityExportButton from './components/UniversityExportButton';
+import UniClientSelector from './components/UniClientSelector';
 import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
-import { loadClientRegister, findClientWithRegister } from './lib/clientRegister';
+import { loadClientRegister, findClientWithRegister, getUniverzaForStranka } from './lib/clientRegister';
 import { DEFAULT_CENA_DT } from './config/constants';
 
 function fmtDate(d: Date) {
@@ -50,6 +51,10 @@ export default function App() {
 
   // University flow
   const [uniMode, setUniMode] = useState(false);
+  const [uniAllEntries, setUniAllEntries] = useState<WorkEntry[]>([]);
+  const [uniAllStranke, setUniAllStranke] = useState<Array<{ name: string; count: number }>>([]);
+  const [uniSelectedType, setUniSelectedType] = useState<'UP' | 'UL'>('UP');
+  const [uniSelectedStranka, setUniSelectedStranka] = useState<string | null>(null);
   const [uniEntries, setUniEntries] = useState<WorkEntry[]>([]);
   const [uniClient, setUniClient] = useState<ClientConfig | undefined>();
   const [uniMetadata, setUniMetadata] = useState<InvoiceMetadata>({
@@ -65,7 +70,10 @@ export default function App() {
     try {
       const parsed = await parseExcel(file);
       setAllEntries(parsed);
-      setStranke(getStrankeStats(parsed));
+      const allStats = getStrankeStats(parsed);
+      // Exclude stranke that belong to UL or UP universities
+      const filtered = allStats.filter(({ name }) => getUniverzaForStranka(name) === '');
+      setStranke(filtered);
       setExportedStranke(new Set());
       setStep(2);
     } catch (e) {
@@ -76,34 +84,49 @@ export default function App() {
   const handleUniversityFile = async (file: File, uniType: 'UP' | 'UL') => {
     try {
       const parsed = await parseExcel(file);
-      setUniEntries(parsed);
-
-      const clientId = uniType === 'UP' ? 'up' : 'ul';
-      const foundClient = CLIENTS.find(c => c.id === clientId);
-      setUniClient(foundClient);
-
-      const validDates = parsed.map(e => e.datum).filter(d => !isNaN(d.getTime()));
-      let obdobjeOd = '';
-      let obdobjeDo = '';
-      if (validDates.length) {
-        const anyDate = validDates[0];
-        const year = anyDate.getFullYear();
-        const month = anyDate.getMonth();
-        obdobjeOd = fmtDate(new Date(year, month, 1));
-        obdobjeDo = fmtDate(new Date(year, month + 1, 0));
-      }
-      setUniMetadata(m => ({
-        ...m,
-        znesekVzdrzevanja: foundClient?.znesekVzdrzevanja ?? 0,
-        obdobjeOd,
-        obdobjeDo,
-      }));
-
+      setUniAllEntries(parsed);
+      setUniAllStranke(getStrankeStats(parsed));
+      setUniSelectedType(uniType);
+      setUniSelectedStranka(null);
+      setUniEntries([]);
+      setUniClient(undefined);
       setUniMode(true);
-      setStep(3);
+      setStep(2);
     } catch (e) {
       alert('Napaka pri branju datoteke: ' + String(e));
     }
+  };
+
+  const handleSelectUniStranka = (stranka: string) => {
+    setUniSelectedStranka(stranka);
+
+    const clientId = uniSelectedType === 'UP' ? 'up' : 'ul';
+    const foundClient = CLIENTS.find(c => c.id === clientId);
+    setUniClient(foundClient);
+
+    const filtered = uniAllEntries.filter(e => {
+      const key = (e.skupina || e.stranka).toLowerCase().trim();
+      const target = stranka.toLowerCase().trim();
+      return key === target || key.includes(target) || target.includes(key);
+    });
+    setUniEntries(filtered);
+
+    const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
+    let obdobjeOd = '';
+    let obdobjeDo = '';
+    if (validDates.length) {
+      const anyDate = validDates[0];
+      const year = anyDate.getFullYear();
+      const month = anyDate.getMonth();
+      obdobjeOd = fmtDate(new Date(year, month, 1));
+      obdobjeDo = fmtDate(new Date(year, month + 1, 0));
+    }
+    setUniMetadata(m => ({
+      ...m,
+      znesekVzdrzevanja: foundClient?.znesekVzdrzevanja ?? 0,
+      obdobjeOd,
+      obdobjeDo,
+    }));
   };
 
   const handleSelectStranka = (stranka: string, _passedConfig: ClientConfig | undefined) => {
@@ -179,6 +202,10 @@ export default function App() {
     setMetadata({ ...EMPTY_METADATA });
     // University
     setUniMode(false);
+    setUniAllEntries([]);
+    setUniAllStranke([]);
+    setUniSelectedType('UP');
+    setUniSelectedStranka(null);
     setUniEntries([]);
     setUniClient(undefined);
     setUniMetadata({ ...EMPTY_METADATA, opisVzdrzevanja: 'Vzdrževanje po pogodbi' });
@@ -189,6 +216,7 @@ export default function App() {
   const steps = uniMode
     ? [
         { n: 1, label: 'Uvoz Excel' },
+        { n: 2, label: 'Izbira stranke' },
         { n: 3, label: 'Tabela del' },
         { n: 4, label: 'Povzetek' },
         { n: 5, label: 'Izvoz' },
@@ -209,10 +237,12 @@ export default function App() {
           <div className="font-bold text-xl text-blue-700">TALPAS</div>
           <div className="text-gray-400">|</div>
           <div className="text-gray-600 text-sm">Obračun vzdrževalnih del</div>
-          {uniMode && uniClient && (
+          {uniMode && (
             <>
               <div className="text-gray-400">|</div>
-              <div className="text-sm font-medium text-purple-700">{uniClient.imeNaRacunu}</div>
+              <div className="text-sm font-medium text-purple-700">
+                {uniSelectedStranka ?? uniSelectedType}
+              </div>
             </>
           )}
           {!uniMode && selectedStranka && (
@@ -264,7 +294,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Step 2: Client selection (standard only) */}
+        {/* Step 2: Client selection (standard) */}
         {step >= 2 && !uniMode && (
           <div>
             <ClientSelector
@@ -274,6 +304,29 @@ export default function App() {
               exportedStranke={exportedStranke}
             />
             {canProceedToStep3 && step === 2 && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setStep(3)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Nadaljuj →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 2: Client selection (university) */}
+        {step >= 2 && uniMode && (
+          <div>
+            <UniClientSelector
+              allStranke={uniAllStranke}
+              selectedType={uniSelectedType}
+              selected={uniSelectedStranka}
+              onTypeChange={setUniSelectedType}
+              onSelect={handleSelectUniStranka}
+            />
+            {uniSelectedStranka && step === 2 && (
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => setStep(3)}
