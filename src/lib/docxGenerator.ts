@@ -18,9 +18,9 @@ function formatDateSl(d: Date) {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
 
-async function loadTemplate(basePath: string): Promise<ArrayBuffer> {
-  const res = await fetch(`${basePath}/assets/template_racun.docx`);
-  if (!res.ok) throw new Error(`Predloga template_racun.docx ni najdena (${res.status}). Naloži jo v public/assets/.`);
+async function loadTemplate(basePath: string, filename = 'template_racun.docx'): Promise<ArrayBuffer> {
+  const res = await fetch(`${basePath}/assets/${filename}`);
+  if (!res.ok) throw new Error(`Predloga ${filename} ni najdena (${res.status}). Naloži jo v public/assets/.`);
   return res.arrayBuffer();
 }
 
@@ -258,7 +258,7 @@ export async function generateUniversityInvoice(
   basePath = '/talpas'
 ): Promise<void> {
   const calc = izracunajUniverza(entries, client.cenaDt, metadata.znesekVzdrzevanja);
-  const templateBuffer = await loadTemplate(basePath);
+  const templateBuffer = await loadTemplate(basePath, 'template_racun_uni.docx');
 
   // Per-faculty postavke (only faculties with D ur > 0)
   const fakulteteZDelom = calc.poFakultetah.filter(f => f.urD > 0 || f.dpZnesek > 0);
@@ -401,6 +401,15 @@ export async function generateUniversityInvoice(
     skupajUrDi: '0',
   };
   console.log('TEMPLATE DATA (uni):', JSON.stringify(uniData, null, 2));
+  console.log('=== UNI WORD DATA ===');
+  console.log('imeStranke:', uniData.imeStranke);
+  console.log('vzdrzevanjeArr:', JSON.stringify(uniData.vzdrzevanjeArr));
+  console.log('dtArr:', JSON.stringify(uniData.dtArr));
+  console.log('diArr:', JSON.stringify(uniData.diArr));
+  console.log('dpArr:', JSON.stringify(uniData.dpArr));
+  console.log('priloga:', JSON.stringify(uniData.priloga?.slice(0,2)));
+  console.log('skupajBrezDDV:', uniData.skupajBrezDDV);
+  console.log('FULL DATA KEYS:', Object.keys(uniData));
   const zip = new PizZip(templateBuffer);
   try {
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
