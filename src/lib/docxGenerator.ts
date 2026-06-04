@@ -28,6 +28,20 @@ function xmlEsc(s: string): string {
   return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// .docx files created on Windows can have backslash paths in the ZIP entries.
+// Docxtemplater looks up files with forward-slash paths (from Content_Types.xml),
+// so backslash entries are never found and the template compiles to nothing.
+function normalizeZipPaths(zip: PizZip): PizZip {
+  Object.keys(zip.files).forEach(key => {
+    if (key.includes('\\')) {
+      const normalKey = key.split('\\').join('/');
+      zip.files[normalKey] = zip.files[key];
+      delete zip.files[key];
+    }
+  });
+  return zip;
+}
+
 function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): string {
   const byFakulteta = new Map<string, WorkEntry[]>();
   for (const e of entries) {
@@ -169,8 +183,8 @@ export async function generateDocx(
   const arrayBuffer = await response.arrayBuffer();
   console.log('FETCH OK, size:', arrayBuffer.byteLength);
 
-  // 2. Odpri z PizZip
-  const zip = new PizZip(arrayBuffer);
+  // 2. Odpri z PizZip in normaliziraj poti (Windows .docx ima backslash poti)
+  const zip = normalizeZipPaths(new PizZip(arrayBuffer));
 
   // 3. Ustvari Docxtemplater
   const doc = new Docxtemplater(zip, {
@@ -543,7 +557,7 @@ export async function generateUniversityInvoice(
   console.log('priloga:', JSON.stringify(uniData.priloga?.slice(0,2)));
   console.log('skupajBrezDDV:', uniData.skupajBrezDDV);
   console.log('FULL DATA KEYS:', Object.keys(uniData));
-  const zip = new PizZip(templateBuffer);
+  const zip = normalizeZipPaths(new PizZip(templateBuffer));
   try {
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
     doc.render(uniData);
