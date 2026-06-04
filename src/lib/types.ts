@@ -27,6 +27,7 @@ export interface WorkEntry {
   skupina: string;
   delo: string;
   datum: Date;
+  datumStr?: string;
   kontakt: string;
   vrstaDela: WorkType;
   steviloUr: number;

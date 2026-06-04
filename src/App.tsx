@@ -9,11 +9,12 @@ import UniversityUpload from './components/UniversityUpload';
 import UniversityWorkTable from './components/UniversityWorkTable';
 import UniversityInvoiceSummary from './components/UniversityInvoiceSummary';
 import UniversityExportButton from './components/UniversityExportButton';
+import VisExportButton from './components/VisExportButton';
 import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
-import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka } from './lib/clientRegister';
+import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka } from './lib/clientRegister';
 import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
 function fmtDate(d: Date) {
@@ -43,7 +44,7 @@ type RestoreDialogState = {
   strankaKey: string;
   savedEntries: WorkEntry[];
   savedMetadata: InvoiceMetadata;
-  isUni: boolean;
+  target: 'standard' | 'uni' | 'vis';
 } | null;
 
 export default function App() {
@@ -71,6 +72,17 @@ export default function App() {
   const [uniExcelFileName, setUniExcelFileName] = useState('');
   const [exportedStranke, setExportedStranke] = useState<Set<string>>(new Set());
 
+  // VIS flow
+  const [visMode, setVisMode] = useState(false);
+  const [visAllEntries, setVisAllEntries] = useState<WorkEntry[]>([]);
+  const [visFakultete, setVisFakultete] = useState<Array<{ name: string; count: number }>>([]);
+  const [visSelectedFakulteta, setVisSelectedFakulteta] = useState<string | null>(null);
+  const [visClient, setVisClient] = useState<ClientConfig | undefined>();
+  const [visEntries, setVisEntries] = useState<WorkEntry[]>([]);
+  const [visMetadata, setVisMetadata] = useState<InvoiceMetadata>({ ...EMPTY_METADATA });
+  const [visExcelFileName, setVisExcelFileName] = useState('');
+  const [visExportedFakultete, setVisExportedFakultete] = useState<Set<string>>(new Set());
+
   // Restore dialog
   const [restoreDialog, setRestoreDialog] = useState<RestoreDialogState>(null);
 
@@ -95,12 +107,22 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [uniEntries, uniMetadata, uniExcelFileName, uniSelectedType, restoreDialog]);
 
+  // Auto-save VIS flow (debounced 1s)
+  useEffect(() => {
+    if (!visExcelFileName || !visSelectedFakulteta || visEntries.length === 0 || restoreDialog !== null) return;
+    const strankaKey = `VIS_${visSelectedFakulteta}`;
+    const timer = setTimeout(() => {
+      saveWorkState(visExcelFileName, strankaKey, visEntries, visMetadata);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [visEntries, visMetadata, visExcelFileName, visSelectedFakulteta, restoreDialog]);
+
   const handleFile = async (file: File) => {
     try {
       const parsed = await parseExcel(file);
       setAllEntries(parsed);
       const allStats = getStrankeStats(parsed);
-      // Exclude stranke that belong to UL or UP universities
+      // Exclude UP, UL, VIS entries from standard client list
       const filtered = allStats.filter(({ name }) => getUniverzaForStranka(name) === '');
       setStranke(filtered);
       setExcelFileName(file.name);
@@ -151,11 +173,31 @@ export default function App() {
     }));
   };
 
-  const handleUniversityFile = async (file: File, uniType: 'UP' | 'UL') => {
+  const handleUniversityFile = async (file: File, uniType: 'UP' | 'UL' | 'VIS') => {
+    if (uniType === 'VIS') {
+      try {
+        const parsed = await parseExcel(file);
+        const visFiltered = parsed.filter(e =>
+          e.skupina?.toLowerCase() === 'vis' || isVisStranka(e.stranka)
+        );
+        const stats = getStrankeStats(visFiltered);
+        setVisAllEntries(visFiltered);
+        setVisFakultete(stats);
+        setVisMode(true);
+        setUniMode(false);
+        setVisExcelFileName(file.name);
+        setStep(2);
+      } catch (e) {
+        alert('Napaka pri branju datoteke: ' + String(e));
+      }
+      return;
+    }
+
     try {
       const parsed = await parseExcel(file);
       setUniAllEntries(parsed);
       setUniMode(true);
+      setVisMode(false);
       applyUniType(parsed, uniType);
       setUniExcelFileName(file.name);
       setStep(3);
@@ -169,7 +211,7 @@ export default function App() {
           strankaKey,
           savedEntries: saved.entries,
           savedMetadata: saved.metadata,
-          isUni: true,
+          target: 'uni',
         });
       }
     } catch (e) {
@@ -190,7 +232,7 @@ export default function App() {
           strankaKey,
           savedEntries: saved.entries,
           savedMetadata: saved.metadata,
-          isUni: true,
+          target: 'uni',
         });
       }
     }
@@ -258,17 +300,77 @@ export default function App() {
           strankaKey: stranka,
           savedEntries: saved.entries,
           savedMetadata: saved.metadata,
-          isUni: false,
+          target: 'standard',
         });
       }
     }
   };
 
+  const handleVisSelectFakulteta = (fakulteta: string, _cfg: ClientConfig | undefined) => {
+    setVisSelectedFakulteta(fakulteta);
+    const cfg = findClientWithRegister(fakulteta) ?? {
+      id: fakulteta.toLowerCase().replace(/\s+/g, '-'),
+      imeZaIskanje: [fakulteta.toLowerCase()],
+      imeNaRacunu: fakulteta,
+      naslov: '', posta: '', kraj: '', idDDV: '',
+      cenaDt: 48, cenaDi: 70,
+      znesekVzdrzevanja: 0,
+      opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
+      billingType: 'standard' as const,
+    };
+    setVisClient(cfg);
+
+    const filtered = visAllEntries.filter(e => e.stranka === fakulteta);
+    setVisEntries(filtered);
+
+    const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
+    let obdobjeOd = '', obdobjeDo = '';
+    if (validDates.length) {
+      const year = validDates[0].getFullYear();
+      const month = validDates[0].getMonth();
+      obdobjeOd = fmtDate(new Date(year, month, 1));
+      obdobjeDo = fmtDate(new Date(year, month + 1, 0));
+    }
+    setVisMetadata(m => ({
+      ...m,
+      znesekVzdrzevanja: cfg.znesekVzdrzevanja,
+      znesekGostovanja: cfg.gostovanj ?? 0,
+      opisVzdrzevanja: cfg.opisVzdrzevanja,
+      obdobjeOd,
+      obdobjeDo,
+    }));
+
+    if (visExcelFileName) {
+      const strankaKey = `VIS_${fakulteta}`;
+      const saved = loadWorkState(visExcelFileName, strankaKey);
+      if (saved) {
+        setRestoreDialog({
+          displayName: fakulteta,
+          fileName: visExcelFileName,
+          strankaKey,
+          savedEntries: saved.entries,
+          savedMetadata: saved.metadata,
+          target: 'vis',
+        });
+      }
+    }
+  };
+
+  const handleVisExported = (name: string) => {
+    setVisExportedFakultete(prev => new Set([...prev, name]));
+    if (visExcelFileName && window.confirm(`Račun za "${name}" izvožen. Želite pobrisati shranjeno delo?`)) {
+      deleteWorkState(visExcelFileName, `VIS_${name}`);
+    }
+  };
+
   const handleRestoreConfirm = () => {
     if (!restoreDialog) return;
-    if (restoreDialog.isUni) {
+    if (restoreDialog.target === 'uni') {
       setUniEntries(restoreDialog.savedEntries);
       setUniMetadata(restoreDialog.savedMetadata);
+    } else if (restoreDialog.target === 'vis') {
+      setVisEntries(restoreDialog.savedEntries);
+      setVisMetadata(restoreDialog.savedMetadata);
     } else {
       setEntries(restoreDialog.savedEntries);
       setMetadata(restoreDialog.savedMetadata);
@@ -302,7 +404,9 @@ export default function App() {
     }
   };
 
-  const canProceedToStep3 = selectedStranka !== null && entries.length > 0;
+  const canProceedToStep3 =
+    (!uniMode && !visMode && selectedStranka !== null && entries.length > 0) ||
+    (visMode && visSelectedFakulteta !== null && visEntries.length > 0);
 
   const handleReset = () => {
     setStep(1);
@@ -323,10 +427,28 @@ export default function App() {
     setUniMetadata({ ...EMPTY_METADATA, opisVzdrzevanja: 'Vzdrževanje po pogodbi' });
     setUniExcelFileName('');
     setExportedStranke(new Set());
+    // VIS
+    setVisMode(false);
+    setVisAllEntries([]);
+    setVisFakultete([]);
+    setVisSelectedFakulteta(null);
+    setVisClient(undefined);
+    setVisEntries([]);
+    setVisMetadata({ ...EMPTY_METADATA });
+    setVisExcelFileName('');
+    setVisExportedFakultete(new Set());
     setRestoreDialog(null);
   };
 
-  const steps = uniMode
+  const steps = visMode
+    ? [
+        { n: 1, label: 'Uvoz Excel' },
+        { n: 2, label: 'Izbira fakultete' },
+        { n: 3, label: 'Tabela del' },
+        { n: 4, label: 'Povzetek' },
+        { n: 5, label: 'Izvoz' },
+      ]
+    : uniMode
     ? [
         { n: 1, label: 'Uvoz Excel' },
         { n: 3, label: 'Tabela del' },
@@ -355,7 +477,13 @@ export default function App() {
               <div className="text-sm font-medium text-purple-700">{uniClient.imeNaRacunu}</div>
             </>
           )}
-          {!uniMode && selectedStranka && (
+          {visMode && visSelectedFakulteta && (
+            <>
+              <div className="text-gray-400">|</div>
+              <div className="text-sm font-medium text-orange-700">{visSelectedFakulteta}</div>
+            </>
+          )}
+          {!uniMode && !visMode && selectedStranka && (
             <>
               <div className="text-gray-400">|</div>
               <div className="text-sm font-medium text-gray-700">{selectedStranka}</div>
@@ -383,6 +511,11 @@ export default function App() {
               Univerza
             </span>
           )}
+          {visMode && (
+            <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+              VIS
+            </span>
+          )}
         </div>
       </div>
 
@@ -404,8 +537,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Step 2: Client selection (standard) */}
-        {step >= 2 && !uniMode && (
+        {/* Step 2: Client/Faculty selection */}
+        {step >= 2 && !uniMode && !visMode && (
           <div>
             <ClientSelector
               stranke={stranke}
@@ -426,12 +559,50 @@ export default function App() {
           </div>
         )}
 
+        {/* Step 2: VIS faculty selection */}
+        {step >= 2 && visMode && (
+          <div>
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">Izberi fakulteto za obračun (VIS)</h2>
+              <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                {visFakultete.map(({ name, count }) => {
+                  const isSelected = visSelectedFakulteta === name;
+                  const isExported = visExportedFakultete.has(name);
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => handleVisSelectFakulteta(name, undefined)}
+                      className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
+                        isExported ? 'bg-red-50 border-l-4 border-l-red-500 text-gray-700'
+                        : isSelected ? 'bg-orange-50 text-orange-800 font-medium'
+                        : 'hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <span>{name}</span>
+                      <span className="text-gray-400 tabular-nums">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {canProceedToStep3 && step === 2 && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setStep(3)}
+                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
+                >
+                  Nadaljuj →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Step 3: Work table */}
         {step >= 3 && (
           <div>
             {uniMode ? (
               <div className="space-y-3">
-                {/* UP/UL dropdown above the work table */}
                 <div className="bg-white rounded-xl shadow px-6 py-4 flex items-center gap-6">
                   <span className="text-sm font-medium text-gray-600">Univerza:</span>
                   {(['UP', 'UL'] as const).map(t => (
@@ -453,6 +624,8 @@ export default function App() {
                 </div>
                 <UniversityWorkTable entries={uniEntries} onChange={setUniEntries} />
               </div>
+            ) : visMode ? (
+              <UniversityWorkTable entries={visEntries} onChange={setVisEntries} />
             ) : (
               client && (
                 <WorkTable
@@ -487,6 +660,15 @@ export default function App() {
                   onMetadataChange={setUniMetadata}
                 />
               )
+            ) : visMode ? (
+              visClient && (
+                <UniversityInvoiceSummary
+                  entries={visEntries}
+                  client={visClient}
+                  metadata={visMetadata}
+                  onMetadataChange={setVisMetadata}
+                />
+              )
             ) : (
               client && (
                 <InvoiceSummary
@@ -498,8 +680,8 @@ export default function App() {
               )
             )}
             <InvoiceMetadataForm
-              metadata={uniMode ? uniMetadata : metadata}
-              onChange={uniMode ? setUniMetadata : setMetadata}
+              metadata={visMode ? visMetadata : uniMode ? uniMetadata : metadata}
+              onChange={visMode ? setVisMetadata : uniMode ? setUniMetadata : setMetadata}
             />
             {step === 4 && (
               <div className="flex justify-end">
@@ -523,6 +705,16 @@ export default function App() {
                 client={uniClient}
                 metadata={uniMetadata}
                 onExported={handleUniExported}
+              />
+            )
+          ) : visMode ? (
+            visClient && (
+              <VisExportButton
+                entries={visEntries}
+                client={visClient}
+                metadata={visMetadata}
+                fakultetaName={visSelectedFakulteta ?? ''}
+                onExported={handleVisExported}
               />
             )
           ) : (

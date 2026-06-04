@@ -7,27 +7,52 @@ interface Props {
 }
 
 const UNI_TYPE_STYLES: Record<string, string> = {
-  D: 'bg-green-100 text-green-800 border-green-300',
+  D:  'bg-green-100 text-green-800 border-green-300',
   Dp: 'bg-orange-100 text-orange-800 border-orange-300',
-  V: 'bg-red-100 text-red-800 border-red-300',
+  V:  'bg-red-100 text-red-800 border-red-300',
 };
+
+const INPUT_CLS = 'w-full text-sm border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-transparent';
 
 export default function UniversityWorkRow({ entry, onChange }: Props) {
   const setField = <K extends keyof WorkEntry>(key: K, val: WorkEntry[K]) =>
     onChange({ ...entry, [key]: val });
 
+  const isUntagged = entry.vrstaDela === null;
+
   return (
-    <tr className="border-b border-gray-100">
-      <td className="px-3 py-2 text-sm text-gray-600 break-words">{entry.delo}</td>
-      <td className="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">{formatDate(entry.datum)}</td>
-      <td className="px-3 py-2 text-sm text-gray-600">{entry.kontakt}</td>
+    <tr className={`border-b border-gray-100 ${isUntagged ? 'bg-gray-50 opacity-60' : ''}`}>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={entry.delo}
+          onChange={e => setField('delo', e.target.value)}
+          className={INPUT_CLS}
+        />
+      </td>
+      <td className="px-3 py-2 whitespace-nowrap">
+        <input
+          type="text"
+          value={entry.datumStr ?? formatDate(entry.datum)}
+          onChange={e => setField('datumStr', e.target.value)}
+          className={INPUT_CLS + ' w-24'}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={entry.kontakt}
+          onChange={e => setField('kontakt', e.target.value)}
+          className={INPUT_CLS}
+        />
+      </td>
 
       <td className="px-3 py-2">
         <div className="flex gap-1">
           {(['D', 'V', 'Dp'] as WorkType[]).map(t => (
             <button
               key={t}
-              onClick={() => setField('vrstaDela', t)}
+              onClick={() => setField('vrstaDela', entry.vrstaDela === t ? null : t)}
               className={`px-2 py-0.5 text-xs rounded border font-medium transition-all ${
                 entry.vrstaDela === t
                   ? (UNI_TYPE_STYLES[t as string] ?? '')
@@ -76,7 +101,14 @@ export default function UniversityWorkRow({ entry, onChange }: Props) {
         />
       </td>
 
-      <td className="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">{entry.opravil}</td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={entry.opravil}
+          onChange={e => setField('opravil', e.target.value)}
+          className={INPUT_CLS + ' whitespace-nowrap'}
+        />
+      </td>
     </tr>
   );
 }

@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react';
 
 interface Props {
-  onFileLoaded: (file: File, uniType: 'UP' | 'UL') => void;
+  onFileLoaded: (file: File, uniType: 'UP' | 'UL' | 'VIS') => void;
 }
 
 export default function UniversityUpload({ onFileLoaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [uniType, setUniType] = useState<'UP' | 'UL'>('UP');
+  const [uniType, setUniType] = useState<'UP' | 'UL' | 'VIS'>('UP');
 
   const handle = (file: File) => {
     if (file.name.match(/\.xlsx?$/i)) onFileLoaded(file, uniType);
@@ -19,7 +19,7 @@ export default function UniversityUpload({ onFileLoaded }: Props) {
       {/* UP/UL radio */}
       <div className="flex items-center gap-6">
         <span className="text-sm font-medium text-gray-600">Univerza:</span>
-        {(['UP', 'UL'] as const).map(t => (
+        {(['UP', 'UL', 'VIS'] as const).map(t => (
           <label key={t} className="flex items-center gap-1.5 cursor-pointer">
             <input
               type="radio"
@@ -30,7 +30,7 @@ export default function UniversityUpload({ onFileLoaded }: Props) {
               className="accent-purple-600"
             />
             <span className="text-sm font-medium text-gray-700">
-              {t === 'UP' ? 'UP – Univerza na Primorskem' : 'UL – Univerza v Ljubljani'}
+              {t === 'UP' ? 'UP – Univerza na Primorskem' : t === 'UL' ? 'UL – Univerza v Ljubljani' : 'VIS – Samostojne fakultete'}
             </span>
           </label>
         ))}
@@ -51,7 +51,9 @@ export default function UniversityUpload({ onFileLoaded }: Props) {
         }}
       >
         <div className="text-3xl mb-2">🏫</div>
-        <p className="text-base font-medium text-purple-700">Uvozi Excel – Univerza ({uniType})</p>
+        <p className="text-base font-medium text-purple-700">
+          Uvozi Excel – {uniType === 'VIS' ? 'VIS' : `Univerza (${uniType})`}
+        </p>
         <p className="text-xs text-gray-500 mt-1">Stolpec STRANKA = naziv fakultete · drag & drop ali klik</p>
         <input
           ref={inputRef}

@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from '../lib/types';
-import { generateDocx } from '../lib/docxGenerator';
-import { saveMonthlyHours } from '../lib/historyStore';
+import { generateVisInvoice } from '../lib/docxGenerator';
 
 interface Props {
   entries: WorkEntry[];
   client: ClientConfig;
   metadata: InvoiceMetadata;
-  strankaName?: string;
+  fakultetaName?: string;
   onExported?: (name: string) => void;
 }
 
-export default function ExportButton({ entries, client, metadata, strankaName, onExported }: Props) {
+export default function VisExportButton({ entries, client, metadata, fakultetaName, onExported }: Props) {
   const [loading, setLoading] = useState(false);
 
   const uncategorized = entries.filter(e => e.vrstaDela === null);
@@ -26,17 +25,8 @@ export default function ExportButton({ entries, client, metadata, strankaName, o
     if (errors.length > 0) return;
     setLoading(true);
     try {
-      await generateDocx(entries, client, metadata);
-
-      if (strankaName) onExported?.(strankaName);
-
-      // Save hours history for threshold clients
-      if (client.billingType === 'threshold') {
-        const now = new Date();
-        const mesec = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const totalUr = entries.reduce((s, e) => s + e.steviloUr, 0);
-        saveMonthlyHours(client.id, mesec, totalUr);
-      }
+      await generateVisInvoice(entries, client, metadata);
+      if (fakultetaName) onExported?.(fakultetaName);
     } catch (err) {
       alert('Napaka pri generiranju dokumenta: ' + String(err));
     } finally {
@@ -46,7 +36,7 @@ export default function ExportButton({ entries, client, metadata, strankaName, o
 
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Izvoz</h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">Izvoz – VIS{fakultetaName ? ` · ${fakultetaName}` : ''}</h2>
 
       {errors.length > 0 ? (
         <div className="mb-4 space-y-1">
@@ -63,7 +53,7 @@ export default function ExportButton({ entries, client, metadata, strankaName, o
           </div>
           {uncategorized.length > 0 && (
             <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded flex items-center gap-2">
-              <span>ℹ</span> {uncategorized.length} neoznačenih vnosov se ne upošteva v obračunu (vidni v prilogi).
+              <span>ℹ</span> {uncategorized.length} neoznačenih vnosov se ne upošteva v obračunu.
             </div>
           )}
         </div>
@@ -75,10 +65,10 @@ export default function ExportButton({ entries, client, metadata, strankaName, o
         className={`px-6 py-3 rounded-lg font-semibold text-white transition-all ${
           errors.length > 0 || loading
             ? 'bg-gray-300 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+            : 'bg-orange-600 hover:bg-orange-700 active:scale-95'
         }`}
       >
-        {loading ? '⏳ Generiranje...' : '📄 Izvozi Word dokument (.docx)'}
+        {loading ? '⏳ Generiranje...' : '📄 Izvozi Word račun – VIS (.docx)'}
       </button>
     </div>
   );

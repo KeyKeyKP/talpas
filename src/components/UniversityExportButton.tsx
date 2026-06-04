@@ -17,7 +17,6 @@ export default function UniversityExportButton({ entries, client, metadata, onEx
   const missingMeta = !metadata.stevilkaRacuna || !metadata.datumRacuna || !metadata.rokPlacila;
 
   const errors: string[] = [];
-  if (uncategorized.length > 0) errors.push(`${uncategorized.length} vnosov brez kategorije`);
   if (dpMissing.length > 0) errors.push(`${dpMissing.length} Dp vnosov brez zneska`);
   if (missingMeta) errors.push('Manjkajo podatki računa (številka, datum, rok plačila)');
 
@@ -47,8 +46,15 @@ export default function UniversityExportButton({ entries, client, metadata, onEx
           ))}
         </div>
       ) : (
-        <div className="mb-4 text-sm text-green-600 bg-green-50 px-3 py-2 rounded flex items-center gap-2">
-          <span>✅</span> Vse je v redu. Pripravljen za izvoz.
+        <div className="mb-4 space-y-1">
+          <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded flex items-center gap-2">
+            <span>✅</span> Pripravljen za izvoz.
+          </div>
+          {uncategorized.length > 0 && (
+            <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded flex items-center gap-2">
+              <span>ℹ</span> {uncategorized.length} neoznačenih vnosov se ne upošteva.
+            </div>
+          )}
         </div>
       )}
 

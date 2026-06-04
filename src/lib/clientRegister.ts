@@ -10,7 +10,7 @@ export interface RegisterEntry {
   posta: string;
   kraj: string;
   idDDV: string;
-  univerza: 'UL' | 'UP' | '';
+  univerza: 'UL' | 'UP' | 'VIS' | '';
   mesecniPausal: number;
   cenaDt: number;
   cenaDi: number;
@@ -51,8 +51,8 @@ export async function loadClientRegister(basePath = '/talpas'): Promise<void> {
       const cenaDi = parseFloat(String(row[8] ?? '')) || DEFAULT_CENA_DI;
       const gostovanj = parseFloat(String(row[9] ?? '')) || 0;
       const univerzaRaw = String(row[5] ?? '').trim().toUpperCase();
-      const univerza: 'UL' | 'UP' | '' =
-        univerzaRaw === 'UL' ? 'UL' : univerzaRaw === 'UP' ? 'UP' : '';
+      const univerza: 'UL' | 'UP' | 'VIS' | '' =
+        univerzaRaw === 'UL' ? 'UL' : univerzaRaw === 'UP' ? 'UP' : univerzaRaw === 'VIS' ? 'VIS' : '';
 
       const entry: RegisterEntry = {
         kratica,
@@ -88,12 +88,16 @@ export function isInRegister(strankaName: string): boolean {
   return findInRegister(strankaName) !== undefined;
 }
 
-export function getUniverzaForStranka(name: string): 'UL' | 'UP' | '' {
+export function getUniverzaForStranka(name: string): 'UL' | 'UP' | 'VIS' | '' {
   return findInRegister(name)?.univerza ?? '';
 }
 
 export function isUniStranka(name: string, uniType: 'UP' | 'UL'): boolean {
   return findInRegister(name)?.univerza === uniType;
+}
+
+export function isVisStranka(name: string): boolean {
+  return findInRegister(name)?.univerza === 'VIS';
 }
 
 export function findClientWithRegister(strankaName: string): ClientConfig | undefined {

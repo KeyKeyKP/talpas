@@ -138,9 +138,9 @@ function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): 
     const dataRows = rows.map(e =>
       '<w:tr><w:trPr><w:trHeight w:val="594"/></w:trPr>' +
       dataCell(cols[0], e.delo ?? '') +
-      dataCell(cols[1], formatDateSl(e.datum)) +
+      dataCell(cols[1], e.datumStr ?? formatDateSl(e.datum)) +
       dataCell(cols[2], e.kontakt ?? '') +
-      dataCell(cols[3], e.vrstaDela ?? '') +
+      dataCell(cols[3], e.vrstaDela ?? '–') +
       dataCell(cols[4], dec(e.steviloUr)) +
       dataCell(cols[5], e.opis ?? '') +
       dataCell(cols[6], e.opravil ?? '') +
@@ -277,9 +277,9 @@ export async function generateDocx(
 
   const prilogaVrstice = sortedEntries.map(e => ({
     delo: e.delo ?? '',
-    datum: formatDateSl(e.datum),
+    datum: e.datumStr ?? formatDateSl(e.datum),
     kontakt: e.kontakt ?? '',
-    vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
+    vrstaDela: e.vrstaDela === null ? '–' : (e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : e.vrstaDela),
     steviloUr: formatNum(e.steviloUr),
     opis: e.opis ?? '',
     opravil: e.opravil ?? '',
@@ -595,4 +595,18 @@ export async function generateUniversityInvoice(
     }
     throw error;
   }
+}
+
+// VIS: per-faculty invoice using standard template, D hours mapped to Dt
+export async function generateVisInvoice(
+  entries: WorkEntry[],
+  client: ClientConfig,
+  metadata: InvoiceMetadata,
+  basePath = '/talpas'
+): Promise<void> {
+  const mappedEntries: WorkEntry[] = entries.map(e => ({
+    ...e,
+    vrstaDela: e.vrstaDela === 'D' ? 'Dt' : e.vrstaDela,
+  }));
+  return generateDocx(mappedEntries, client, metadata, basePath);
 }
