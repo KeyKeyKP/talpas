@@ -160,13 +160,27 @@ export async function generateDocx(
   metadata: InvoiceMetadata,
   basePath = '/talpas'
 ): Promise<void> {
+  // 1. Fetch template
+  const response = await fetch(`${basePath}/assets/template_racun.docx`);
+  if (!response.ok) {
+    console.error('FETCH FAILED:', response.status, response.url);
+    throw new Error(`Predloga template_racun.docx ni najdena (${response.status}).`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  console.log('FETCH OK, size:', arrayBuffer.byteLength);
+
+  // 2. Odpri z PizZip
+  const zip = new PizZip(arrayBuffer);
+
+  // 3. Ustvari Docxtemplater
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+  });
+
+  // 4. Pripravi podatke
   const calc = izracunaj(entries, client, metadata.znesekVzdrzevanja, metadata.znesekGostovanja);
-  const templateBuffer = await loadTemplate(basePath);
 
-  const zip = new PizZip(templateBuffer);
-  const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-
-  // Postavke za tabelo računa
   const postavke = [];
   if (calc.znesekVzdrzevanja > 0) {
     postavke.push({
@@ -217,13 +231,10 @@ export async function generateDocx(
     });
   }
 
-  // Vrstice za prilogo (sortirano po datumu padajoče)
   const sortedEntries = [...entries].sort((a, b) => b.datum.getTime() - a.datum.getTime());
   const isUmbrella = client.billingType === 'umbrella';
 
-  // Grupiranje po stranki za umbrella
   const prilogaSekcije: { naslov: string; vrstice: object[]; skupajUrDt: string; skupajUrDi: string }[] = [];
-
   if (isUmbrella) {
     const byStranka: Record<string, WorkEntry[]> = {};
     for (const e of sortedEntries) {
@@ -260,8 +271,7 @@ export async function generateDocx(
     opravil: e.opravil ?? '',
   }));
 
-  doc.render({
-    // Izdajatelj
+  const data = {
     izdajatelj_ime: IZDAJATELJ.ime ?? '',
     izdajatelj_naslov: IZDAJATELJ.naslov ?? '',
     izdajatelj_idDDV: IZDAJATELJ.idDDV ?? '',
@@ -272,14 +282,12 @@ export async function generateDocx(
     izdajatelj_web: IZDAJATELJ.web ?? '',
     izdala: IZDAJATELJ.izdala ?? '',
 
-    // Prejemnik
     imeStranke: client.imeNaRacunu ?? '',
     naslovStranke: client.naslov ?? '',
     postaStranke: client.posta ?? '',
     krajStranke: client.kraj ?? '',
     idDDV: client.idDDV ?? '',
 
-    // Metadata računa
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
     sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
     datumRacuna: metadata.datumRacuna ?? '',
@@ -287,41 +295,34 @@ export async function generateDocx(
     obdobjeOd: metadata.obdobjeOd ?? '',
     obdobjeDo: metadata.obdobjeDo ?? '',
 
-    // Vzdrževanje vrstica
     opisVzdrzevanja: (metadata.opisVzdrzevanja || 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme') ?? '',
     znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
     ddvVzdrzevanje: eur(calc.ddvVzdrzevanje),
     vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja + calc.ddvVzdrzevanje),
 
-    // Delo tehnik vrstica
     urDt: formatNum(calc.urDt),
     cenaDt: eur(client.cenaDt),
     vrednostDt: eur(calc.vrednostDt),
     ddvDt: eur(calc.ddvDt),
     dtZDDV: eur(calc.vrednostDt + calc.ddvDt),
 
-    // Delo inženir vrstica
     urDi: formatNum(calc.urDi),
     cenaDi: eur(client.cenaDi),
     vrednostDi: eur(calc.vrednostDi),
     ddvDi: eur(calc.ddvDi),
     diZDDV: eur(calc.vrednostDi + calc.ddvDi),
 
-    // Delo po ponudbi vrstica
     vrednostDp: eur(calc.vrednostDp),
     ddvDp: eur(calc.ddvDp),
     dpZDDV: eur(calc.vrednostDp + calc.ddvDp),
 
-    // Skupaj
     skupajBrezDDV: eur(calc.skupajBrezDDV),
     skupajDDV: eur(calc.ddv),
     skupajZDDV: eur(calc.skupajZDDV),
     skupajZaPlacilo: eur(calc.skupajZDDV),
 
-    // Postavke (loop)
     postavke,
 
-    // Vzdrževanje – conditional row (empty array = hidden)
     vzdrzevanjeArr: calc.znesekVzdrzevanja > 0 ? [{
       opisVzdrzevanja: metadata.opisVzdrzevanja || 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
       znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
@@ -329,7 +330,6 @@ export async function generateDocx(
       vzdrzevanjeZDDV: eur(calc.znesekVzdrzevanja + calc.ddvVzdrzevanje),
     }] : [],
 
-    // Delo tehnik – conditional row (empty array = hidden)
     dtArr: calc.urDt > 0 ? [{
       urDt: formatNum(calc.urDt),
       cenaDt: eur(client.cenaDt),
@@ -338,7 +338,6 @@ export async function generateDocx(
       dtZDDV: eur(calc.vrednostDt + calc.ddvDt),
     }] : [],
 
-    // Delo inženir – conditional row (empty array = hidden)
     diArr: calc.urDi > 0 ? [{
       urDi: formatNum(calc.urDi),
       cenaDi: eur(client.cenaDi),
@@ -347,21 +346,18 @@ export async function generateDocx(
       diZDDV: eur(calc.vrednostDi + calc.ddvDi),
     }] : [],
 
-    // Gostovanje – conditional row (empty array = hidden)
     gostovanjeArr: calc.znesekGostovanja > 0 ? [{
       znesekGostovanja: eur(calc.znesekGostovanja),
       ddvGostovanja: eur(calc.ddvGostovanje),
       gostovanjeZDDV: eur(calc.znesekGostovanja + calc.ddvGostovanje),
     }] : [],
 
-    // Dp – conditional row (empty array = hidden)
     dpArr: calc.vrednostDp > 0 ? [{
       vrednostDp: eur(calc.vrednostDp),
       ddvDp: eur(calc.ddvDp),
       dpZDDV: eur(calc.vrednostDp + calc.ddvDp),
     }] : [],
 
-    // Priloga
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
     priloga: prilogaVrstice,
     prilogaVrstice,
@@ -369,9 +365,30 @@ export async function generateDocx(
     prilogaSekcije,
     skupajUrDt: formatNum(calc.urDt),
     skupajUrDi: formatNum(calc.urDi),
+  };
+
+  // 5. RENDERAJ
+  console.log('RENDER DATA:', Object.keys(data));
+  console.log('imeStranke:', data.imeStranke, '| stevilkaRacuna:', data.stevilkaRacuna);
+  try {
+    doc.render(data);
+    console.log('RENDER OK');
+  } catch (error: unknown) {
+    const e = error as { properties?: { errors?: unknown }; message?: string };
+    console.error('RENDER FAILED:', e.message);
+    if (e.properties?.errors) {
+      console.error('ERRORS:', JSON.stringify(e.properties.errors, null, 2));
+    }
+    throw error;
+  }
+
+  // 6. Generiraj blob ŠELE PO renderju
+  const blob = doc.getZip().generate({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  // 7. Shrani
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
 }
 
