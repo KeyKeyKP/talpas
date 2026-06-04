@@ -9,7 +9,7 @@ interface Props {
 const UNI_TYPE_STYLES: Record<string, string> = {
   D: 'bg-green-100 text-green-800 border-green-300',
   Dp: 'bg-orange-100 text-orange-800 border-orange-300',
-  V: 'bg-gray-100 text-gray-600 border-gray-300',
+  V: 'bg-red-100 text-red-800 border-red-300',
 };
 
 export default function UniversityWorkRow({ entry, onChange }: Props) {
