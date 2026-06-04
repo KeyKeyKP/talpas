@@ -163,6 +163,9 @@ export async function generateDocx(
   const calc = izracunaj(entries, client, metadata.znesekVzdrzevanja, metadata.znesekGostovanja);
   const templateBuffer = await loadTemplate(basePath);
 
+  const zip = new PizZip(templateBuffer);
+  const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
   // Postavke za tabelo računa
   const postavke = [];
   if (calc.znesekVzdrzevanja > 0) {
@@ -237,12 +240,12 @@ export async function generateDocx(
           datum: formatDateSl(e.datum),
           kontakt: e.kontakt ?? '',
           vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
-          steviloUr: dec(e.steviloUr),
+          steviloUr: formatNum(e.steviloUr),
           opis: e.opis ?? '',
           opravil: e.opravil ?? '',
         })),
-        skupajUrDt: dec(dtUr),
-        skupajUrDi: dec(diUr),
+        skupajUrDt: formatNum(dtUr),
+        skupajUrDi: formatNum(diUr),
       });
     }
   }
@@ -252,12 +255,12 @@ export async function generateDocx(
     datum: formatDateSl(e.datum),
     kontakt: e.kontakt ?? '',
     vrstaDela: e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : (e.vrstaDela ?? ''),
-    steviloUr: dec(e.steviloUr),
+    steviloUr: formatNum(e.steviloUr),
     opis: e.opis ?? '',
     opravil: e.opravil ?? '',
   }));
 
-  const data = {
+  doc.render({
     // Izdajatelj
     izdajatelj_ime: IZDAJATELJ.ime ?? '',
     izdajatelj_naslov: IZDAJATELJ.naslov ?? '',
@@ -278,7 +281,7 @@ export async function generateDocx(
 
     // Metadata računa
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
-    sklic: metadata.stevilkaRacuna ?? '',
+    sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
     datumRacuna: metadata.datumRacuna ?? '',
     rokPlacila: metadata.rokPlacila ?? '',
     obdobjeOd: metadata.obdobjeOd ?? '',
@@ -315,7 +318,7 @@ export async function generateDocx(
     skupajZDDV: eur(calc.skupajZDDV),
     skupajZaPlacilo: eur(calc.skupajZDDV),
 
-    // Postavke (loop – za nazaj kompatibilnost)
+    // Postavke (loop)
     postavke,
 
     // Vzdrževanje – conditional row (empty array = hidden)
@@ -328,7 +331,7 @@ export async function generateDocx(
 
     // Delo tehnik – conditional row (empty array = hidden)
     dtArr: calc.urDt > 0 ? [{
-      urDt: dec(calc.urDt),
+      urDt: formatNum(calc.urDt),
       cenaDt: eur(client.cenaDt),
       vrednostDt: eur(calc.vrednostDt),
       ddvDt: eur(calc.ddvDt),
@@ -337,7 +340,7 @@ export async function generateDocx(
 
     // Delo inženir – conditional row (empty array = hidden)
     diArr: calc.urDi > 0 ? [{
-      urDi: dec(calc.urDi),
+      urDi: formatNum(calc.urDi),
       cenaDi: eur(client.cenaDi),
       vrednostDi: eur(calc.vrednostDi),
       ddvDi: eur(calc.ddvDi),
@@ -361,24 +364,15 @@ export async function generateDocx(
     // Priloga
     prilogaStevilka: metadata.stevilkaRacuna ?? '',
     priloga: prilogaVrstice,
-    skupajUrDt: dec(calc.urDt),
-    skupajUrDi: dec(calc.urDi),
-  };
-  console.log('TEMPLATE DATA:', JSON.stringify(data, null, 2));
-  const zip = new PizZip(templateBuffer);
-  try {
-    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-    doc.render(data);
-    const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
-  } catch (error: unknown) {
-    const e = error as { properties?: { errors?: unknown }; message?: string };
-    console.error('Docx error:', e.message);
-    if (e.properties?.errors) {
-      console.error('Template errors:', JSON.stringify(e.properties.errors, null, 2));
-    }
-    throw error;
-  }
+    prilogaVrstice,
+    isUmbrella,
+    prilogaSekcije,
+    skupajUrDt: formatNum(calc.urDt),
+    skupajUrDi: formatNum(calc.urDi),
+  });
+
+  const blob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
 }
 
 export async function generateUniversityInvoice(
