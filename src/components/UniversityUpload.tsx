@@ -4,6 +4,12 @@ interface Props {
   onFileLoaded: (file: File, uniType: 'UP' | 'UL' | 'VIS') => void;
 }
 
+const TYPE_LABELS: Record<'UP' | 'UL' | 'VIS', string> = {
+  UP: 'UP – Primorska',
+  UL: 'UL – Ljubljana',
+  VIS: 'VIS',
+};
+
 export default function UniversityUpload({ onFileLoaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -15,30 +21,30 @@ export default function UniversityUpload({ onFileLoaded }: Props) {
   };
 
   return (
-    <div className="space-y-3">
-      {/* UP/UL radio */}
-      <div className="flex items-center gap-6">
-        <span className="text-sm font-medium text-gray-600">Univerza:</span>
+    <div className="space-y-4">
+      {/* Type pills */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-slate-500">Tip:</span>
         {(['UP', 'UL', 'VIS'] as const).map(t => (
-          <label key={t} className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="radio"
-              name="uniType"
-              value={t}
-              checked={uniType === t}
-              onChange={() => setUniType(t)}
-              className="accent-purple-600"
-            />
-            <span className="text-sm font-medium text-gray-700">
-              {t === 'UP' ? 'UP – Univerza na Primorskem' : t === 'UL' ? 'UL – Univerza v Ljubljani' : 'VIS – Samostojne fakultete'}
-            </span>
-          </label>
+          <button
+            key={t}
+            type="button"
+            onClick={() => setUniType(t)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-150 ${
+              uniType === t
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            {TYPE_LABELS[t]}
+          </button>
         ))}
       </div>
 
+      {/* Drop zone */}
       <div
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-          dragging ? 'border-purple-500 bg-purple-50' : 'border-purple-300 bg-white hover:border-purple-400'
+        className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-200 ${
+          dragging ? 'border-violet-400 bg-violet-50' : 'border-slate-300 bg-white hover:border-violet-400 hover:bg-slate-50'
         }`}
         onClick={() => inputRef.current?.click()}
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -50,11 +56,16 @@ export default function UniversityUpload({ onFileLoaded }: Props) {
           if (f) handle(f);
         }}
       >
-        <div className="text-3xl mb-2">🏫</div>
-        <p className="text-base font-medium text-purple-700">
-          Uvozi Excel – {uniType === 'VIS' ? 'VIS' : `Univerza (${uniType})`}
+        <div className="flex justify-center mb-3">
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" className="text-slate-300">
+            <path d="M24 8v20M16 16l8-8 8 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M8 32v4a4 4 0 004 4h24a4 4 0 004-4v-4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <p className="text-base font-semibold text-slate-700 mb-1">
+          Uvozi Excel – {uniType === 'VIS' ? 'VIS – Samostojne fakultete' : `Univerza (${uniType})`}
         </p>
-        <p className="text-xs text-gray-500 mt-1">Stolpec STRANKA = naziv fakultete · drag & drop ali klik</p>
+        <p className="text-sm text-slate-400">Stolpec STRANKA = naziv fakultete · drag & drop ali klik</p>
         <input
           ref={inputRef}
           type="file"

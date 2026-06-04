@@ -464,73 +464,73 @@ export default function App() {
       ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f8fafc]">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-4">
-          <div className="font-bold text-xl text-blue-700">TALPAS</div>
-          <div className="text-gray-400">|</div>
-          <div className="text-gray-600 text-sm">Obračun vzdrževalnih del</div>
+      <header className="bg-[#1e293b] h-14 flex items-center">
+        <div className="max-w-[1400px] mx-auto px-8 w-full flex items-center gap-4">
+          <div className="font-bold text-lg text-white tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>TALPAS</div>
+          <div className="h-4 w-px bg-slate-600" />
           {uniMode && uniClient && (
-            <>
-              <div className="text-gray-400">|</div>
-              <div className="text-sm font-medium text-purple-700">{uniClient.imeNaRacunu}</div>
-            </>
+            <span className="text-sm font-medium text-violet-300">{uniClient.imeNaRacunu}</span>
           )}
           {visMode && visSelectedFakulteta && (
-            <>
-              <div className="text-gray-400">|</div>
-              <div className="text-sm font-medium text-orange-700">{visSelectedFakulteta}</div>
-            </>
+            <span className="text-sm font-medium text-orange-300">{visSelectedFakulteta}</span>
           )}
           {!uniMode && !visMode && selectedStranka && (
-            <>
-              <div className="text-gray-400">|</div>
-              <div className="text-sm font-medium text-gray-700">{selectedStranka}</div>
-            </>
+            <span className="text-sm font-medium text-slate-300">{selectedStranka}</span>
           )}
+          <div className="flex-1" />
+          <div className="text-slate-400 text-sm">Obračun vzdrževalnih del</div>
         </div>
       </header>
 
       {/* Steps */}
-      <div className="max-w-7xl mx-auto px-4 py-3">
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          {steps.map(({ n, label }, idx) => (
-            <React.Fragment key={n}>
-              <div className={`flex items-center gap-1 ${step >= n ? 'text-blue-600 font-medium' : ''}`}>
-                <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center ${
-                  step > n ? 'bg-blue-600 text-white' : step === n ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' : 'bg-gray-200 text-gray-500'
-                }`}>{idx + 1}</span>
-                {label}
-              </div>
-              {idx < steps.length - 1 && <div className="w-4 h-px bg-gray-300" />}
-            </React.Fragment>
-          ))}
+      <div className="border-b border-slate-200 bg-white">
+        <div className="max-w-[1400px] mx-auto px-8 py-3 flex items-center gap-1">
+          {steps.map(({ n, label }, idx) => {
+            const done = step > n;
+            const active = step === n;
+            return (
+              <React.Fragment key={n}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-semibold shrink-0 ${
+                    done ? 'bg-emerald-100 text-emerald-600' :
+                    active ? 'bg-blue-600 text-white' :
+                    'bg-slate-100 text-slate-400'
+                  }`}>
+                    {done ? '✓' : idx + 1}
+                  </span>
+                  <span className={`text-sm ${
+                    active ? 'font-semibold text-slate-800' :
+                    done ? 'text-slate-500' :
+                    'text-slate-400'
+                  }`}>{label}</span>
+                </div>
+                {idx < steps.length - 1 && <div className="w-6 h-px bg-slate-200 mx-1" />}
+              </React.Fragment>
+            );
+          })}
           {uniMode && (
-            <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-              Univerza
-            </span>
+            <span className="ml-3 text-[11px] font-semibold bg-violet-100 text-violet-600 px-2.5 py-0.5 rounded-full">Univerza</span>
           )}
           {visMode && (
-            <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
-              VIS
-            </span>
+            <span className="ml-3 text-[11px] font-semibold bg-orange-100 text-orange-600 px-2.5 py-0.5 rounded-full">VIS</span>
           )}
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 pb-12 space-y-6">
+      <main className="max-w-[1400px] mx-auto px-8 pb-16 pt-6 space-y-5">
 
         {/* Step 1: File uploads */}
         {step === 1 && (
-          <div className="space-y-6">
+          <div className="space-y-5 max-w-2xl">
             <FileUpload onFileLoaded={handleFile} />
             <div className="relative">
-              <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                <div className="w-full border-t border-gray-200" />
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
               </div>
               <div className="relative flex justify-center">
-                <span className="bg-gray-50 px-3 text-xs text-gray-400 uppercase tracking-wide">ali</span>
+                <span className="bg-[#f8fafc] px-4 text-xs text-slate-400 uppercase tracking-widest font-medium">ali</span>
               </div>
             </div>
             <UniversityUpload onFileLoaded={handleUniversityFile} />
@@ -550,7 +550,7 @@ export default function App() {
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => setStep(3)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="h-10 px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors duration-150 shadow-sm"
                 >
                   Nadaljuj →
                 </button>
@@ -562,9 +562,12 @@ export default function App() {
         {/* Step 2: VIS faculty selection */}
         {step >= 2 && visMode && (
           <div>
-            <div className="bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">Izberi fakulteto za obračun (VIS)</h2>
-              <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-base font-semibold text-slate-800">Izberi fakulteto za obračun</h2>
+                <p className="text-sm text-slate-400 mt-0.5">{visFakultete.length} fakultet · VIS</p>
+              </div>
+              <div className="divide-y divide-slate-100">
                 {visFakultete.map(({ name, count }) => {
                   const isSelected = visSelectedFakulteta === name;
                   const isExported = visExportedFakultete.has(name);
@@ -572,14 +575,14 @@ export default function App() {
                     <button
                       key={name}
                       onClick={() => handleVisSelectFakulteta(name, undefined)}
-                      className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
-                        isExported ? 'bg-red-50 border-l-4 border-l-red-500 text-gray-700'
-                        : isSelected ? 'bg-orange-50 text-orange-800 font-medium'
-                        : 'hover:bg-gray-50 text-gray-700'
+                      className={`w-full text-left px-6 py-3 flex items-center justify-between transition-colors duration-150 ${
+                        isExported ? 'border-l-[3px] border-red-400 bg-red-50/40 pl-[21px]'
+                        : isSelected ? 'bg-orange-50 border-l-[3px] border-orange-500 pl-[21px]'
+                        : 'hover:bg-slate-50'
                       }`}
                     >
-                      <span>{name}</span>
-                      <span className="text-gray-400 tabular-nums">{count}</span>
+                      <span className={`text-sm font-medium ${isSelected ? 'text-orange-800' : 'text-slate-700'}`}>{name}</span>
+                      <span className="text-sm text-slate-400 font-mono tabular-nums">{count}</span>
                     </button>
                   );
                 })}
@@ -589,7 +592,7 @@ export default function App() {
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => setStep(3)}
-                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
+                  className="h-10 px-6 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm transition-colors duration-150 shadow-sm"
                 >
                   Nadaljuj →
                 </button>
@@ -602,25 +605,24 @@ export default function App() {
         {step >= 3 && (
           <div>
             {uniMode ? (
-              <div className="space-y-3">
-                <div className="bg-white rounded-xl shadow px-6 py-4 flex items-center gap-6">
-                  <span className="text-sm font-medium text-gray-600">Univerza:</span>
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-6 py-3.5 flex items-center gap-3">
+                  <span className="text-sm font-medium text-slate-500">Univerza:</span>
                   {(['UP', 'UL'] as const).map(t => (
-                    <label key={t} className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="uniTypeFilter"
-                        value={t}
-                        checked={uniSelectedType === t}
-                        onChange={() => handleUniTypeChange(t)}
-                        className="accent-purple-600"
-                      />
-                      <span className="text-sm font-medium text-gray-700">
-                        {t === 'UP' ? 'UP – Univerza na Primorskem' : 'UL – Univerza v Ljubljani'}
-                      </span>
-                    </label>
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => handleUniTypeChange(t)}
+                      className={`h-8 px-4 rounded-full text-sm font-medium transition-all duration-150 ${
+                        uniSelectedType === t
+                          ? 'bg-violet-600 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                    >
+                      {t === 'UP' ? 'UP – Primorska' : 'UL – Ljubljana'}
+                    </button>
                   ))}
-                  <span className="text-xs text-gray-400 ml-auto">{uniEntries.length} vnosov</span>
+                  <span className="text-sm text-slate-400 ml-auto">{uniEntries.length} vnosov</span>
                 </div>
                 <UniversityWorkTable entries={uniEntries} onChange={setUniEntries} />
               </div>
@@ -639,7 +641,7 @@ export default function App() {
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => setStep(4)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="h-10 px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors duration-150 shadow-sm"
                 >
                   Nadaljuj →
                 </button>
@@ -687,7 +689,7 @@ export default function App() {
               <div className="flex justify-end">
                 <button
                   onClick={() => setStep(5)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="h-10 px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors duration-150 shadow-sm"
                 >
                   Nadaljuj →
                 </button>
@@ -732,12 +734,12 @@ export default function App() {
 
         {/* Reset */}
         {step > 1 && (
-          <div className="flex justify-start">
+          <div className="flex justify-start pt-2">
             <button
               onClick={handleReset}
-              className="text-sm text-gray-400 hover:text-gray-600 underline"
+              className="text-sm text-slate-400 hover:text-slate-600 transition-colors duration-150"
             >
-              Začni znova
+              ← Začni znova
             </button>
           </div>
         )}
@@ -745,25 +747,29 @@ export default function App() {
 
       {/* Restore dialog */}
       {restoreDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-            <div className="text-2xl mb-3">💾</div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Najdeno shranjeno delo</h3>
-            <p className="text-gray-600 mb-6">
-              Najdeno shranjeno delo za{' '}
-              <strong className="text-gray-800">{restoreDialog.displayName}</strong>.
-              Želite nadaljevati?
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border border-slate-200">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-800 mb-1">Najdeno shranjeno delo</h3>
+            <p className="text-slate-500 text-sm mb-6">
+              Za <strong className="text-slate-700">{restoreDialog.displayName}</strong> obstaja shranjeno stanje. Želite nadaljevati od tam?
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={handleRestoreDiscard}
-                className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="h-9 px-4 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Začni znova
               </button>
               <button
                 onClick={handleRestoreConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="h-9 px-4 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
               >
                 Nadaljuj
               </button>

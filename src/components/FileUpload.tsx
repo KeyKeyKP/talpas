@@ -15,7 +15,9 @@ export default function FileUpload({ onFileLoaded }: Props) {
 
   return (
     <div
-      className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white hover:border-blue-400'}`}
+      className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 ${
+        dragging ? 'border-blue-400 bg-blue-50' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50'
+      }`}
       onClick={() => inputRef.current?.click()}
       onDragOver={e => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
@@ -26,9 +28,16 @@ export default function FileUpload({ onFileLoaded }: Props) {
         if (f) handle(f);
       }}
     >
-      <div className="text-4xl mb-3">📂</div>
-      <p className="text-lg font-medium text-gray-700">Povleci Excel datoteko sem</p>
-      <p className="text-sm text-gray-500 mt-1">ali klikni za izbiro datoteke (.xlsx)</p>
+      <div className="flex justify-center mb-4">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-slate-300">
+          <rect x="8" y="4" width="24" height="32" rx="3" stroke="currentColor" strokeWidth="2" fill="none"/>
+          <path d="M32 4l8 8v28a3 3 0 01-3 3H11a3 3 0 01-3-3V7a3 3 0 013-3h21z" stroke="currentColor" strokeWidth="2" fill="none"/>
+          <path d="M32 4v8h8" stroke="currentColor" strokeWidth="2"/>
+          <path d="M18 22h12M18 28h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </div>
+      <p className="text-base font-semibold text-slate-700 mb-1">Standardni uvoz Excel</p>
+      <p className="text-sm text-slate-400">Povleci datoteko sem ali klikni za izbiro (.xlsx)</p>
       <input
         ref={inputRef}
         type="file"

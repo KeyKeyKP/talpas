@@ -6,13 +6,14 @@ interface Props {
   onChange: (entries: WorkEntry[]) => void;
 }
 
+const TH = 'px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400';
+
 export default function UniversityWorkTable({ entries, onChange }: Props) {
   const updateEntry = (updated: WorkEntry) =>
     onChange(entries.map(e => e.id === updated.id ? updated : e));
 
   const uncategorized = entries.filter(e => e.vrstaDela === null).length;
 
-  // Group by faculty (stranka field)
   const byFakulteta: Record<string, WorkEntry[]> = {};
   for (const e of entries) {
     if (!byFakulteta[e.stranka]) byFakulteta[e.stranka] = [];
@@ -22,17 +23,16 @@ export default function UniversityWorkTable({ entries, onChange }: Props) {
   const renderFakulteta = (fakulteta: string, rows: WorkEntry[]) => {
     const dUr = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
     const dpCount = rows.filter(r => r.vrstaDela === 'Dp').length;
-
     const stats = [
       dUr > 0 && `D: ${dUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
       dpCount > 0 && `Dp: ${dpCount} postavk`,
     ].filter(Boolean).join(' · ');
 
     return (
-      <div key={fakulteta} className="mb-6">
-        <div className="bg-purple-800 text-white text-sm font-semibold px-4 py-2 rounded-t-lg flex items-center justify-between">
+      <div key={fakulteta} className="mb-6 last:mb-0">
+        <div className="bg-slate-700 text-white text-sm font-semibold px-4 py-2.5 rounded-t-lg flex items-center justify-between">
           <span>{fakulteta}</span>
-          <span className="text-purple-200 text-xs font-normal">{stats}</span>
+          {stats && <span className="text-slate-400 text-xs font-normal">{stats}</span>}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm table-fixed">
@@ -45,15 +45,15 @@ export default function UniversityWorkTable({ entries, onChange }: Props) {
               <col style={{ width: '43%' }} />
               <col style={{ width: '9%' }} />
             </colgroup>
-            <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
+            <thead className="border-b-2 border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left">Delo</th>
-                <th className="px-3 py-2 text-left">Datum</th>
-                <th className="px-3 py-2 text-left">Kontakt</th>
-                <th className="px-3 py-2 text-left">Vrsta</th>
-                <th className="px-3 py-2 text-left">Ure</th>
-                <th className="px-3 py-2 text-left">Opis</th>
-                <th className="px-3 py-2 text-left">Opravil</th>
+                <th className={TH}>Delo</th>
+                <th className={TH}>Datum</th>
+                <th className={TH}>Kontakt</th>
+                <th className={TH}>Vrsta</th>
+                <th className={TH}>Ure</th>
+                <th className={TH}>Opis</th>
+                <th className={TH}>Opravil</th>
               </tr>
             </thead>
             <tbody>
@@ -68,19 +68,19 @@ export default function UniversityWorkTable({ entries, onChange }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow">
-      <div className="px-6 pt-5 pb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">
-          Tabela del – Univerza ({entries.length} vnosov)
-        </h2>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-800">Tabela del – Univerza</h2>
+          <p className="text-sm text-slate-400 mt-0.5">{entries.length} vnosov</p>
+        </div>
         {uncategorized > 0 && (
-          <span className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full">
-            ⚠ {uncategorized} vnosov brez kategorije
+          <span className="text-[12px] font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-500">
+            {uncategorized} neoznačenih
           </span>
         )}
       </div>
-
-      <div className="px-6 pb-5">
+      <div className="px-6 py-4">
         {Object.entries(byFakulteta).map(([fak, rows]) => renderFakulteta(fak, rows))}
       </div>
     </div>

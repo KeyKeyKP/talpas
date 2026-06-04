@@ -8,11 +8,12 @@ interface Props {
   onMetadataChange: (m: InvoiceMetadata) => void;
 }
 
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function DottedRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex justify-between py-1 ${bold ? 'font-semibold' : ''}`}>
-      <span className="text-gray-600">{label}</span>
-      <span className="text-gray-900 tabular-nums">{value}</span>
+    <div className={`flex items-baseline gap-2 py-1.5 ${bold ? '' : ''}`}>
+      <span className={`shrink-0 ${bold ? 'text-slate-800 font-semibold text-[15px]' : 'text-slate-500 text-sm'}`}>{label}</span>
+      <span className="flex-1 border-b border-dotted border-slate-200 mb-0.5" />
+      <span className={`shrink-0 tabular-nums ${bold ? 'text-slate-900 font-bold text-lg' : 'text-slate-700 text-sm'}`}>{value}</span>
     </div>
   );
 }
@@ -27,84 +28,69 @@ export default function InvoiceSummary({ entries, client, metadata, onMetadataCh
   const totalHours = entries.reduce((s, e) => s + e.steviloUr, 0);
 
   return (
-    <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Povzetek – {client.imeNaRacunu}</h2>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+      <h2 className="text-base font-semibold text-slate-800 mb-5">{client.imeNaRacunu}</h2>
 
-      {/* Vzdrževanje + Gostovanje */}
-      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Inline amount inputs */}
+      <div className="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label className="text-xs text-gray-500 font-medium block mb-1">Znesek vzdrževanja (brez DDV)</label>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Vzdrževanje (brez DDV)</label>
           <div className="flex items-center gap-2">
             <input
-              type="number"
-              min="0"
-              step="0.01"
+              type="number" min="0" step="0.01"
               value={metadata.znesekVzdrzevanja}
               onChange={e => onMetadataChange({ ...metadata, znesekVzdrzevanja: parseFloat(e.target.value) || 0 })}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-28 text-sm border-b-2 border-slate-200 focus:border-blue-400 focus:outline-none py-1 px-0 bg-transparent"
             />
-            <span className="text-sm text-gray-500">EUR</span>
+            <span className="text-sm text-slate-400">EUR</span>
           </div>
         </div>
         <div>
-          <label className="text-xs text-gray-500 font-medium block mb-1">Gostovanje (brez DDV)</label>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Gostovanje (brez DDV)</label>
           <div className="flex items-center gap-2">
             <input
-              type="number"
-              min="0"
-              step="0.01"
+              type="number" min="0" step="0.01"
               value={metadata.znesekGostovanja}
               onChange={e => onMetadataChange({ ...metadata, znesekGostovanja: parseFloat(e.target.value) || 0 })}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-28 text-sm border-b-2 border-slate-200 focus:border-blue-400 focus:outline-none py-1 px-0 bg-transparent"
             />
-            <span className="text-sm text-gray-500">EUR</span>
+            <span className="text-sm text-slate-400">EUR</span>
           </div>
         </div>
         <div>
-          <label className="text-xs text-gray-500 font-medium block mb-1">Opis vzdrževanja</label>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Opis vzdrževanja</label>
           <input
             type="text"
             value={metadata.opisVzdrzevanja}
             onChange={e => onMetadataChange({ ...metadata, opisVzdrzevanja: e.target.value })}
-            className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full text-sm border-b-2 border-slate-200 focus:border-blue-400 focus:outline-none py-1 px-0 bg-transparent"
           />
         </div>
       </div>
 
-      {/* Izračun */}
-      <div className="border-t border-gray-100 pt-4 max-w-md">
+      {/* Calculation */}
+      <div className="border-t border-slate-100 pt-4 max-w-md">
         {isIncluded && includedHours > 0 && (
-          <Row label={`Vključene ure (${formatNum(includedHours)} ur):`} value="0,00 EUR" />
+          <DottedRow label={`Vključene ure (${formatNum(includedHours)} ur)`} value="0,00 EUR" />
         )}
         {isThreshold && (
           <>
-            <Row label={`Ure v obdobju: ${formatNum(totalHours)} ur`} value="" />
-            <Row label={`Prag: ${client.thresholdHours} ur`} value="" />
-            <Row label={`Pod pragom: ${formatNum(podPragomHours)} ur`} value="0,00 EUR" />
+            <DottedRow label={`Ure v obdobju: ${formatNum(totalHours)} ur`} value="" />
+            <DottedRow label={`Prag: ${client.thresholdHours} ur`} value="" />
+            <DottedRow label={`Pod pragom: ${formatNum(podPragomHours)} ur`} value="0,00 EUR" />
           </>
         )}
+        {calc.znesekVzdrzevanja > 0 && <DottedRow label="Vzdrževanje" value={formatEur(calc.znesekVzdrzevanja)} />}
+        {calc.znesekGostovanja > 0 && <DottedRow label="Gostovanje" value={formatEur(calc.znesekGostovanja)} />}
+        {calc.urDt > 0 && <DottedRow label={`Delo tehnik: ${formatNum(calc.urDt)} ur × ${client.cenaDt},00 EUR`} value={formatEur(calc.vrednostDt)} />}
+        {calc.urDi > 0 && <DottedRow label={`Delo inženir: ${formatNum(calc.urDi)} ur × ${client.cenaDi},00 EUR`} value={formatEur(calc.vrednostDi)} />}
+        {calc.vrednostDp > 0 && <DottedRow label="Delo po ponudbi" value={formatEur(calc.vrednostDp)} />}
 
-        {calc.znesekVzdrzevanja > 0 && (
-          <Row label="Vzdrževanje:" value={formatEur(calc.znesekVzdrzevanja)} />
-        )}
-        {calc.znesekGostovanja > 0 && (
-          <Row label="Gostovanje:" value={formatEur(calc.znesekGostovanja)} />
-        )}
-        {calc.urDt > 0 && (
-          <Row label={`Delo tehnik: ${formatNum(calc.urDt)} ur × ${client.cenaDt},00 EUR:`} value={formatEur(calc.vrednostDt)} />
-        )}
-        {calc.urDi > 0 && (
-          <Row label={`Delo inženir: ${formatNum(calc.urDi)} ur × ${client.cenaDi},00 EUR:`} value={formatEur(calc.vrednostDi)} />
-        )}
-        {calc.vrednostDp > 0 && (
-          <Row label="Delo po ponudbi:" value={formatEur(calc.vrednostDp)} />
-        )}
-
-        <div className="border-t border-gray-200 my-2" />
-        <Row label="Osnova za DDV:" value={formatEur(calc.skupajBrezDDV)} />
-        <Row label="DDV 22%:" value={formatEur(calc.ddv)} />
-        <div className="border-t-2 border-gray-800 my-2" />
-        <Row label="SKUPAJ ZA PLAČILO:" value={formatEur(calc.skupajZDDV)} bold />
+        <div className="border-t border-slate-200 my-3" />
+        <DottedRow label="Osnova za DDV" value={formatEur(calc.skupajBrezDDV)} />
+        <DottedRow label="DDV 22 %" value={formatEur(calc.ddv)} />
+        <div className="border-t-2 border-slate-800 my-2" />
+        <DottedRow label="SKUPAJ ZA PLAČILO" value={formatEur(calc.skupajZDDV)} bold />
       </div>
     </div>
   );

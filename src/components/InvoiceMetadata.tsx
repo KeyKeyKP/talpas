@@ -9,14 +9,14 @@ function Field({ label, value, onChange, placeholder }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-gray-500 font-medium">{label}</label>
+    <div>
+      <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{label}</label>
       <input
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? ''}
-        className="border border-yellow-300 bg-yellow-50 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+        className="w-full bg-yellow-50 border-l-[3px] border-amber-400 pl-3 pr-2 py-2 text-sm text-slate-800 focus:outline-none focus:bg-amber-50 transition-colors rounded-r-md"
       />
     </div>
   );
@@ -27,8 +27,8 @@ export default function InvoiceMetadataForm({ metadata, onChange }: Props) {
     onChange({ ...metadata, [key]: val });
 
   return (
-    <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Metadata računa</h2>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+      <h2 className="text-base font-semibold text-slate-800 mb-5">Podatki računa</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Field label="Številka računa" value={metadata.stevilkaRacuna} onChange={set('stevilkaRacuna')} placeholder="npr. 2026-001" />
         <Field label="Datum računa" value={metadata.datumRacuna} onChange={set('datumRacuna')} placeholder="dd/mm/yyyy" />
