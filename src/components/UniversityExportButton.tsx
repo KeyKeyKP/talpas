@@ -6,9 +6,10 @@ interface Props {
   entries: WorkEntry[];
   client: ClientConfig;
   metadata: InvoiceMetadata;
+  onExported?: () => void;
 }
 
-export default function UniversityExportButton({ entries, client, metadata }: Props) {
+export default function UniversityExportButton({ entries, client, metadata, onExported }: Props) {
   const [loading, setLoading] = useState(false);
 
   const uncategorized = entries.filter(e => e.vrstaDela === null);
@@ -25,6 +26,7 @@ export default function UniversityExportButton({ entries, client, metadata }: Pr
     setLoading(true);
     try {
       await generateUniversityInvoice(entries, client, metadata);
+      onExported?.();
     } catch (err) {
       alert('Napaka pri generiranju dokumenta: ' + String(err));
     } finally {

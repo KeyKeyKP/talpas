@@ -14,6 +14,7 @@ import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
 import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka } from './lib/clientRegister';
+import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
 function fmtDate(d: Date) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -36,6 +37,15 @@ const EMPTY_METADATA: InvoiceMetadata = {
   opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
 };
 
+type RestoreDialogState = {
+  displayName: string;
+  fileName: string;
+  strankaKey: string;
+  savedEntries: WorkEntry[];
+  savedMetadata: InvoiceMetadata;
+  isUni: boolean;
+} | null;
+
 export default function App() {
   const [step, setStep] = useState(1);
 
@@ -46,6 +56,7 @@ export default function App() {
   const [client, setClient] = useState<ClientConfig | undefined>();
   const [entries, setEntries] = useState<WorkEntry[]>([]);
   const [metadata, setMetadata] = useState<InvoiceMetadata>({ ...EMPTY_METADATA });
+  const [excelFileName, setExcelFileName] = useState('');
 
   // University flow
   const [uniMode, setUniMode] = useState(false);
@@ -57,9 +68,32 @@ export default function App() {
     ...EMPTY_METADATA,
     opisVzdrzevanja: 'Vzdrževanje po pogodbi',
   });
+  const [uniExcelFileName, setUniExcelFileName] = useState('');
   const [exportedStranke, setExportedStranke] = useState<Set<string>>(new Set());
 
+  // Restore dialog
+  const [restoreDialog, setRestoreDialog] = useState<RestoreDialogState>(null);
+
   useEffect(() => { loadClientRegister('/talpas'); }, []);
+
+  // Auto-save standard flow (debounced 1s)
+  useEffect(() => {
+    if (!excelFileName || !selectedStranka || entries.length === 0 || restoreDialog !== null) return;
+    const timer = setTimeout(() => {
+      saveWorkState(excelFileName, selectedStranka, entries, metadata);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [entries, metadata, excelFileName, selectedStranka, restoreDialog]);
+
+  // Auto-save uni flow (debounced 1s)
+  useEffect(() => {
+    if (!uniExcelFileName || uniEntries.length === 0 || restoreDialog !== null) return;
+    const strankaKey = `UNI_${uniSelectedType}`;
+    const timer = setTimeout(() => {
+      saveWorkState(uniExcelFileName, strankaKey, uniEntries, uniMetadata);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [uniEntries, uniMetadata, uniExcelFileName, uniSelectedType, restoreDialog]);
 
   const handleFile = async (file: File) => {
     try {
@@ -69,6 +103,7 @@ export default function App() {
       // Exclude stranke that belong to UL or UP universities
       const filtered = allStats.filter(({ name }) => getUniverzaForStranka(name) === '');
       setStranke(filtered);
+      setExcelFileName(file.name);
       setExportedStranke(new Set());
       setStep(2);
     } catch (e) {
@@ -122,7 +157,21 @@ export default function App() {
       setUniAllEntries(parsed);
       setUniMode(true);
       applyUniType(parsed, uniType);
+      setUniExcelFileName(file.name);
       setStep(3);
+
+      const strankaKey = `UNI_${uniType}`;
+      const saved = loadWorkState(file.name, strankaKey);
+      if (saved) {
+        setRestoreDialog({
+          displayName: uniType === 'UP' ? 'UP – Univerza na Primorskem' : 'UL – Univerza v Ljubljani',
+          fileName: file.name,
+          strankaKey,
+          savedEntries: saved.entries,
+          savedMetadata: saved.metadata,
+          isUni: true,
+        });
+      }
     } catch (e) {
       alert('Napaka pri branju datoteke: ' + String(e));
     }
@@ -130,6 +179,21 @@ export default function App() {
 
   const handleUniTypeChange = (uniType: 'UP' | 'UL') => {
     applyUniType(uniAllEntries, uniType);
+
+    if (uniExcelFileName) {
+      const strankaKey = `UNI_${uniType}`;
+      const saved = loadWorkState(uniExcelFileName, strankaKey);
+      if (saved) {
+        setRestoreDialog({
+          displayName: uniType === 'UP' ? 'UP – Univerza na Primorskem' : 'UL – Univerza v Ljubljani',
+          fileName: uniExcelFileName,
+          strankaKey,
+          savedEntries: saved.entries,
+          savedMetadata: saved.metadata,
+          isUni: true,
+        });
+      }
+    }
   };
 
   const handleSelectStranka = (stranka: string, _passedConfig: ClientConfig | undefined) => {
@@ -184,6 +248,52 @@ export default function App() {
       obdobjeOd,
       obdobjeDo,
     }));
+
+    if (excelFileName) {
+      const saved = loadWorkState(excelFileName, stranka);
+      if (saved) {
+        setRestoreDialog({
+          displayName: stranka,
+          fileName: excelFileName,
+          strankaKey: stranka,
+          savedEntries: saved.entries,
+          savedMetadata: saved.metadata,
+          isUni: false,
+        });
+      }
+    }
+  };
+
+  const handleRestoreConfirm = () => {
+    if (!restoreDialog) return;
+    if (restoreDialog.isUni) {
+      setUniEntries(restoreDialog.savedEntries);
+      setUniMetadata(restoreDialog.savedMetadata);
+    } else {
+      setEntries(restoreDialog.savedEntries);
+      setMetadata(restoreDialog.savedMetadata);
+    }
+    setRestoreDialog(null);
+  };
+
+  const handleRestoreDiscard = () => {
+    if (!restoreDialog) return;
+    deleteWorkState(restoreDialog.fileName, restoreDialog.strankaKey);
+    setRestoreDialog(null);
+  };
+
+  const handleExported = (name: string) => {
+    setExportedStranke(prev => new Set([...prev, name]));
+    if (excelFileName && window.confirm(`Račun za "${name}" izvožen. Želite pobrisati shranjeno delo za to stranko?`)) {
+      deleteWorkState(excelFileName, name);
+    }
+  };
+
+  const handleUniExported = () => {
+    const strankaKey = `UNI_${uniSelectedType}`;
+    if (uniExcelFileName && window.confirm('Račun za univerzo izvožen. Želite pobrisati shranjeno delo?')) {
+      deleteWorkState(uniExcelFileName, strankaKey);
+    }
   };
 
   const handleEntriesChange = (updated: WorkEntry[]) => {
@@ -203,6 +313,7 @@ export default function App() {
     setClient(undefined);
     setEntries([]);
     setMetadata({ ...EMPTY_METADATA });
+    setExcelFileName('');
     // University
     setUniMode(false);
     setUniAllEntries([]);
@@ -210,7 +321,9 @@ export default function App() {
     setUniEntries([]);
     setUniClient(undefined);
     setUniMetadata({ ...EMPTY_METADATA, opisVzdrzevanja: 'Vzdrževanje po pogodbi' });
+    setUniExcelFileName('');
     setExportedStranke(new Set());
+    setRestoreDialog(null);
   };
 
   const steps = uniMode
@@ -409,6 +522,7 @@ export default function App() {
                 entries={uniEntries}
                 client={uniClient}
                 metadata={uniMetadata}
+                onExported={handleUniExported}
               />
             )
           ) : (
@@ -418,7 +532,7 @@ export default function App() {
                 client={client}
                 metadata={metadata}
                 strankaName={selectedStranka ?? ''}
-                onExported={(name) => setExportedStranke(prev => new Set([...prev, name]))}
+                onExported={handleExported}
               />
             )
           )
@@ -436,6 +550,35 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Restore dialog */}
+      {restoreDialog && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <div className="text-2xl mb-3">💾</div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Najdeno shranjeno delo</h3>
+            <p className="text-gray-600 mb-6">
+              Najdeno shranjeno delo za{' '}
+              <strong className="text-gray-800">{restoreDialog.displayName}</strong>.
+              Želite nadaljevati?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleRestoreDiscard}
+                className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Začni znova
+              </button>
+              <button
+                onClick={handleRestoreConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                Nadaljuj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
