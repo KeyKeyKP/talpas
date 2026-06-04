@@ -11,7 +11,7 @@ const TYPE_STYLES: Record<NonNullable<WorkType>, string> = {
   Dt: 'bg-green-100 text-green-800 border-green-300',
   Di: 'bg-blue-100 text-blue-800 border-blue-300',
   Dp: 'bg-orange-100 text-orange-800 border-orange-300',
-  V: 'bg-gray-100 text-gray-600 border-gray-300',
+  V: 'bg-gray-500 text-white border-gray-500',
   D: 'bg-green-100 text-green-800 border-green-300',
 };
 
