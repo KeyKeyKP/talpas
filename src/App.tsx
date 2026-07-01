@@ -706,6 +706,7 @@ export default function App() {
                 entries={uniEntries}
                 client={uniClient}
                 metadata={uniMetadata}
+                uniType={uniSelectedType}
                 onExported={handleUniExported}
               />
             )

@@ -3,15 +3,34 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './types';
 import { izracunaj, izracunajUniverza, formatNum } from './calculations';
-import { IZDAJATELJ, DDV_STOPNJA } from '../config/constants';
+import {
+  IZDAJATELJ,
+  DDV_STOPNJA,
+  UNI_INTRO_UP,
+  UNI_INTRO_UL,
+  UNI_VZDRZEVANJE_OPIS_UP,
+  UNI_VZDRZEVANJE_OPIS_UL,
+} from '../config/constants';
 
 function eur(v: number) {
   return v.toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Format hours/quantities without trailing zeros: 7.5 → "7,5", 2.0 → "2", 7.25 → "7,25"
-function dec(v: number) {
-  return v.toLocaleString('sl-SI', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+// Univerzitetni tok (UP/UL): deterministična SL oblika – pika za tisočice, vejica za decimalke.
+// sl-SI locale NE grupira 4-mestnih števil (1200 → "1200,00"), zato grupiramo ročno: 1200 → "1.200,00".
+function groupSl(intStr: string): string {
+  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function eurSl(v: number): string {
+  const neg = v < 0;
+  const [i, d] = Math.abs(v).toFixed(2).split('.');
+  return (neg ? '-' : '') + groupSl(i) + ',' + d;
+}
+function decSl(v: number): string {
+  const neg = v < 0;
+  const s = (Math.round(Math.abs(v) * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  const [i, d] = s.split('.');
+  return (neg ? '-' : '') + groupSl(i) + (d ? ',' + d : '');
 }
 
 function formatDateSl(d: Date) {
@@ -42,7 +61,7 @@ function normalizeZipPaths(zip: PizZip): PizZip {
   return zip;
 }
 
-function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): string {
+function buildFacultyAppendixXml(entries: WorkEntry[]): string {
   const byFakulteta = new Map<string, WorkEntry[]>();
   for (const e of entries) {
     const key = e.stranka ?? 'Neznana';
@@ -69,16 +88,24 @@ function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): 
   const cols = [1870, 870, 1200, 1134, 574, 4387, 1276];
   const F = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>';
 
-  // Header cell: italic, top+bottom border, vAlign=bottom
-  const hdrCell = (w: number, text: string) =>
-    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>` +
-    '<w:tcBorders>' +
-    '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
-    '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
-    '</w:tcBorders><w:vAlign w:val="bottom"/></w:tcPr>' +
-    `<w:p><w:pPr><w:rPr>${F}<w:i/><w:iCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:pPr>` +
-    `<w:r><w:rPr>${F}<w:i/><w:iCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>` +
-    `<w:t>${xmlEsc(text)}</w:t></w:r></w:p></w:tc>`;
+  // Header cell: italic, 8pt (sz 16), top+bottom border, vAlign=bottom.
+  // Sprejme eno vrstico ali več vrstic (ločene z <w:br/>) – identično template prilogi.
+  const hdrCell = (w: number, text: string | string[]) => {
+    const lines = Array.isArray(text) ? text : [text];
+    const iRPr = `<w:rPr>${F}<w:i/><w:iCs/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>`;
+    const runContent = lines
+      .map((t, i) => (i ? '<w:br/>' : '') + `<w:t>${xmlEsc(t)}</w:t>`)
+      .join('');
+    return (
+      `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>` +
+      '<w:tcBorders>' +
+      '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+      '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+      '</w:tcBorders><w:vAlign w:val="bottom"/></w:tcPr>' +
+      `<w:p><w:pPr>${iRPr}</w:pPr>` +
+      `<w:r>${iRPr}${runContent}</w:r></w:p></w:tc>`
+    );
+  };
 
   // Data cell: no italic, bottom border only
   const dataCell = (w: number, text: string) =>
@@ -99,23 +126,19 @@ function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): 
       : '') +
     '</w:p></w:tc>';
 
-  // Title paragraph style (same as standard: bold, sz=22, ind=-567)
-  const titleRPr = `<w:rPr>${F}<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>`;
-  const titlePPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="-567" w:end="0"/>${titleRPr}</w:pPr>`;
-
   let xml = '';
 
+  let fakIdx = 0;
   for (const [fakulteta, rows] of byFakulteta) {
     const skupajUrD = rows.filter(r => r.vrstaDela === 'D').reduce((s, r) => s + r.steviloUr, 0);
 
-    // Page break
-    xml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+    // Prelom strani med fakultetami. Prva fakulteta pade takoj za obstoječi prelom
+    // (za stranjo računa), zato zanjo NE dodamo dodatnega preloma (sicer prazna stran).
+    if (fakIdx > 0) xml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+    fakIdx++;
 
-    // Title: "Priloga računa št. XXXX"
-    xml += `<w:p>${titlePPr}<w:r>${titleRPr}<w:t>Priloga računa št. ${xmlEsc(stevilkaRacuna)}</w:t></w:r></w:p>`;
-
-    // Faculty name (bold, sz=20, same indent)
-    const facRPr = `<w:rPr>${F}<w:b/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
+    // Naslov strani = SAMO ime fakultete (bold, 11pt = sz 22, isti zamik)
+    const facRPr = `<w:rPr>${F}<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>`;
     const facPPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="-567" w:end="0"/>${facRPr}</w:pPr>`;
     xml += `<w:p>${facPPr}<w:r>${facRPr}<w:t>${xmlEsc(fakulteta)}</w:t></w:r></w:p>`;
 
@@ -128,8 +151,8 @@ function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): 
       hdrCell(cols[0], 'Delo') +
       hdrCell(cols[1], 'Datum') +
       hdrCell(cols[2], 'Kontakt') +
-      hdrCell(cols[3], 'Vrsta dela') +
-      hdrCell(cols[4], 'Ur') +
+      hdrCell(cols[3], ['Vrsta dela', 'D=dodatno', 'V=vzdrževanje']) +
+      hdrCell(cols[4], ['Število', 'ur']) +
       hdrCell(cols[5], 'Opis') +
       hdrCell(cols[6], 'Opravil') +
       '</w:tr>';
@@ -138,23 +161,23 @@ function buildFacultyAppendixXml(entries: WorkEntry[], stevilkaRacuna: string): 
     const dataRows = rows.map(e =>
       '<w:tr><w:trPr><w:trHeight w:val="594"/></w:trPr>' +
       dataCell(cols[0], e.delo ?? '') +
-      dataCell(cols[1], e.datumStr ?? formatDateSl(e.datum)) +
+      dataCell(cols[1], formatObdobje(e.datumStr ?? formatDateSl(e.datum))) +
       dataCell(cols[2], e.kontakt ?? '') +
-      dataCell(cols[3], e.vrstaDela ?? '–') +
-      dataCell(cols[4], dec(e.steviloUr)) +
+      dataCell(cols[3], e.vrstaDela ?? '') +
+      dataCell(cols[4], decSl(e.steviloUr)) +
       dataCell(cols[5], e.opis ?? '') +
       dataCell(cols[6], e.opravil ?? '') +
       '</w:tr>'
     ).join('');
 
-    // Summary row (height 70, bCs style)
+    // Summary row (height 70, bCs style): "SKUPAJ za obračun" + število ur
     const sumRow =
       '<w:tr><w:trPr><w:trHeight w:val="70"/></w:trPr>' +
-      sumCell(cols[0], 'Skupaj ur') +
+      sumCell(cols[0], 'SKUPAJ za obračun') +
       sumCell(cols[1], '') +
       sumCell(cols[2], '') +
-      sumCell(cols[3], 'D') +
-      sumCell(cols[4], dec(skupajUrD)) +
+      sumCell(cols[3], '') +
+      sumCell(cols[4], decSl(skupajUrD)) +
       sumCell(cols[5], '') +
       sumCell(cols[6], '') +
       '</w:tr>';
@@ -406,23 +429,39 @@ export async function generateDocx(
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
 }
 
+// Reformat obdobje string (dd/mm/yyyy, d.m.yyyy, ...) → d.M.yyyy (npr. "1.5.2026")
+function formatObdobje(s: string): string {
+  const m = (s ?? '').trim().match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);
+  if (!m) return s ?? '';
+  return `${parseInt(m[1], 10)}.${parseInt(m[2], 10)}.${m[3]}`;
+}
+
 export async function generateUniversityInvoice(
   entries: WorkEntry[],
   client: ClientConfig,
   metadata: InvoiceMetadata,
+  uniType: 'UP' | 'UL' = 'UP',
   basePath = '/talpas'
 ): Promise<void> {
   const calc = izracunajUniverza(entries, client.cenaDt, metadata.znesekVzdrzevanja);
   const templateBuffer = await loadTemplate(basePath, 'template_racun_uni.docx');
 
-  // Per-faculty postavke (only faculties with D ur > 0)
+  const isUL = uniType === 'UL';
+
+  // Uni-only lokalni formatterji: SL denar/ure s piko za tisočice (1.200,00) in evropski datumi.
+  // Senčijo modulske eur/dec/formatNum SAMO znotraj te funkcije – standardni tok ostane nedotaknjen.
+  const eur = eurSl;
+  const dec = decSl;
+  const formatNum = decSl;
+
   const fakulteteZDelom = calc.poFakultetah.filter(f => f.urD > 0 || f.dpZnesek > 0);
 
   const postavke = [];
 
+  // Vrstica 1: vzdrževanje
   if (calc.znesekVzdrzevanja > 0) {
     postavke.push({
-      opis: metadata.opisVzdrzevanja || 'Vzdrževanje po pogodbi',
+      opis: isUL ? UNI_VZDRZEVANJE_OPIS_UL : UNI_VZDRZEVANJE_OPIS_UP,
       kolicina: '1',
       enota: 'kos',
       cena: eur(calc.znesekVzdrzevanja),
@@ -433,23 +472,32 @@ export async function generateUniversityInvoice(
     });
   }
 
-  // "Delo {fakulteta}" for each faculty with D hours
-  for (const { fakulteta, urD } of fakulteteZDelom) {
-    if (urD > 0) {
-      postavke.push({
-        opis: `Delo ${fakulteta}`,
-        kolicina: formatNum(urD),
-        enota: 'ur',
-        cena: eur(client.cenaDt),
-        vrednostBrezDDV: eur(urD * client.cenaDt),
-        stopnjaDDV: '22',
-        ddv: eur(urD * client.cenaDt * DDV_STOPNJA),
-        vrednostZDDV: eur(urD * client.cenaDt * (1 + DDV_STOPNJA)),
-      });
-    }
+  // Vrstica 2..N: "Delo in nadgradnje po naročilu in specifikaciji (...)" – Rektorat prvi.
+  // Navedene VSE fakultete; fakulteta brez ur ima prazne zneske (izpolni se ročno).
+  const jeRektorat = (ime: string) => /rektorat/i.test(ime);
+  const vseFakultete = [
+    ...calc.poFakultetah.filter(f => jeRektorat(f.fakulteta)),
+    ...calc.poFakultetah.filter(f => !jeRektorat(f.fakulteta)),
+  ];
+  for (const { fakulteta, urD } of vseFakultete) {
+    const opis = jeRektorat(fakulteta)
+      ? 'Delo in nadgradnje po naročilu in specifikaciji (Rektorat in skupna naročila za vse članice)'
+      : `Delo in nadgradnje po naročilu in specifikaciji (${fakulteta})`;
+    const imaUre = urD > 0;
+    const vrednost = urD * client.cenaDt;
+    postavke.push({
+      opis,
+      kolicina: imaUre ? formatNum(urD) : '',
+      enota: imaUre ? 'ur' : '',
+      cena: imaUre ? eur(client.cenaDt) : '',
+      vrednostBrezDDV: imaUre ? eur(vrednost) : '',
+      stopnjaDDV: imaUre ? '22' : '',
+      ddv: imaUre ? eur(vrednost * DDV_STOPNJA) : '',
+      vrednostZDDV: imaUre ? eur(vrednost * (1 + DDV_STOPNJA)) : '',
+    });
   }
 
-  // "Delo po ponudbi {fakulteta}" for each faculty with Dp
+  // "Delo po ponudbi {fakulteta}" for each faculty with Dp (ohranjeno – uravnoteži seštevke)
   for (const { fakulteta, dpZnesek } of fakulteteZDelom) {
     if (dpZnesek > 0) {
       postavke.push({
@@ -466,6 +514,8 @@ export async function generateUniversityInvoice(
   }
 
   const sortedEntries = [...entries].sort((a, b) => b.datum.getTime() - a.datum.getTime());
+  const obdobjeOd = formatObdobje(metadata.obdobjeOd ?? '');
+  const obdobjeDo = formatObdobje(metadata.obdobjeDo ?? '');
 
   const uniData = {
     izdajatelj_ime: IZDAJATELJ.ime ?? '',
@@ -486,10 +536,10 @@ export async function generateUniversityInvoice(
 
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
     sklic: metadata.stevilkaRacuna ?? '',
-    datumRacuna: metadata.datumRacuna ?? '',
-    rokPlacila: metadata.rokPlacila ?? '',
-    obdobjeOd: metadata.obdobjeOd ?? '',
-    obdobjeDo: metadata.obdobjeDo ?? '',
+    datumRacuna: formatObdobje(metadata.datumRacuna ?? ''),
+    rokPlacila: formatObdobje(metadata.rokPlacila ?? ''),
+    obdobjeOd,
+    obdobjeDo,
 
     opisVzdrzevanja: (metadata.opisVzdrzevanja || 'Vzdrževanje po pogodbi') ?? '',
     znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
@@ -558,6 +608,16 @@ export async function generateUniversityInvoice(
   console.log('skupajBrezDDV:', uniData.skupajBrezDDV);
   console.log('FULL DATA KEYS:', Object.keys(uniData));
   const zip = normalizeZipPaths(new PizZip(templateBuffer));
+
+  // Besedilo nad tabelo računa (ločeno za UP/UL). Zamenjaj pred renderjem, da se
+  // {obdobjeOd}/{obdobjeDo} znotraj besedila normalno nadomestita.
+  const introText = isUL ? UNI_INTRO_UL : UNI_INTRO_UP;
+  const introDocXml = zip.files['word/document.xml'].asText().replace(
+    /Račun za opravljene storitve v obdobju \{obdobjeOd\} do \{obdobjeDo\}\.\s*/,
+    () => xmlEsc(introText)
+  );
+  zip.file('word/document.xml', introDocXml);
+
   try {
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
     doc.render(uniData);
@@ -571,11 +631,21 @@ export async function generateUniversityInvoice(
     const sectPrEnd = docXml.lastIndexOf('</w:sectPr>') + '</w:sectPr>'.length;
     const sectPr = sectPrStart !== -1 ? docXml.substring(sectPrStart, sectPrEnd) : '';
 
-    // Replace template appendix section (starts at "Priloga računa" paragraph) with per-faculty pages
-    const appendixIdx = docXml.indexOf('<w:t>Priloga ra');
-    const facultyXml = buildFacultyAppendixXml(sortedEntries, metadata.stevilkaRacuna ?? '');
-    if (appendixIdx !== -1) {
-      const paraStart = docXml.lastIndexOf('<w:p', appendixIdx);
+    // Replace the ENTIRE template appendix (heading + template table) with per-faculty pages,
+    // tako da imajo vse fakultete isto (programatsko) tabelo z enakim headerjem.
+    // Docxtemplater po renderju doda xml:space, zato NE iščemo '<w:t>Priloga ra', ampak samo besedilo,
+    // začetek odstavka pa določimo z regexom (da ne zadanemo <w:pPr>).
+    const appendixTextIdx = docXml.indexOf('Priloga ra');
+    let paraStart = -1;
+    if (appendixTextIdx !== -1) {
+      const paraOpen = /<w:p(?:>|\s)/g;
+      let m: RegExpExecArray | null;
+      while ((m = paraOpen.exec(docXml)) !== null && m.index < appendixTextIdx) {
+        paraStart = m.index;
+      }
+    }
+    const facultyXml = buildFacultyAppendixXml(sortedEntries);
+    if (paraStart !== -1) {
       docXml = docXml.substring(0, paraStart) + facultyXml + '<w:p/>' + sectPr + '</w:body></w:document>';
     } else {
       // Fallback: inject before sectPr
