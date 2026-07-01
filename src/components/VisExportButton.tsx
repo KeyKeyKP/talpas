@@ -14,11 +14,10 @@ export default function VisExportButton({ entries, client, metadata, fakultetaNa
   const [loading, setLoading] = useState(false);
 
   const uncategorized = entries.filter(e => e.vrstaDela === null);
-  const dpMissing = entries.filter(e => e.vrstaDela === 'Dp' && !e.dpZnesek);
   const missingMeta = !metadata.stevilkaRacuna || !metadata.datumRacuna || !metadata.rokPlacila;
 
+  // Znesek pri Dp NI obvezen – polje je lahko prazno (izpolni se ročno).
   const errors: string[] = [];
-  if (dpMissing.length > 0) errors.push(`${dpMissing.length} Dp vnosov brez zneska`);
   if (missingMeta) errors.push('Manjkajo podatki računa (številka, datum, rok plačila)');
 
   const handleExport = async () => {
