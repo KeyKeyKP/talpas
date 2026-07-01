@@ -1,5 +1,5 @@
 import { ClientConfig } from '../lib/types';
-import { DEFAULT_CENA_DT, DEFAULT_CENA_DI, CENA_URE_UP } from '../config/constants';
+import { DEFAULT_CENA_DT, DEFAULT_CENA_DI, CENA_URE_UNIVERZA } from '../config/constants';
 
 export const CLIENTS: ClientConfig[] = [
   {
@@ -71,7 +71,7 @@ export const CLIENTS: ClientConfig[] = [
     posta: '6000',
     kraj: 'Koper',
     idDDV: 'SI99887766',
-    cenaDt: CENA_URE_UP, // UP urna postavka = 64,00 EUR (velja za vse UP fakultete)
+    cenaDt: CENA_URE_UNIVERZA, // UP urna postavka = 64,00 EUR (vse UP fakultete)
     cenaDi: DEFAULT_CENA_DI,
     znesekVzdrzevanja: 0,
     opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
@@ -86,7 +86,7 @@ export const CLIENTS: ClientConfig[] = [
     posta: '1000',
     kraj: 'Ljubljana',
     idDDV: 'SI77665544',
-    cenaDt: DEFAULT_CENA_DT,
+    cenaDt: CENA_URE_UNIVERZA, // UL urna postavka = 64,00 EUR (vse UL fakultete)
     cenaDi: DEFAULT_CENA_DI,
     znesekVzdrzevanja: 0,
     opisVzdrzevanja: 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme',
