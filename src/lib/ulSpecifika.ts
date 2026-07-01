@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 
 export interface UlFakulteta {
   kratica: string;
-  znesek: number;
+  znesek: number | null; // null = brez mesečnega zneska (samo postavka, izpolni se ročno)
 }
 
 const ulFakultete: UlFakulteta[] = [];
@@ -20,14 +20,14 @@ function extractKratica(postavka: string): string {
     // ‐-― = tipografski pomišljaji (vključno z en-dash –), plus navaden ASCII -.
     return s.slice(OSNOVNO_PREFIX.length).replace(/^[\s‐-―-]+/, '').trim();
   }
-  // fallback: zadnja beseda
-  const parts = s.split(/\s+/);
-  return parts[parts.length - 1] ?? s;
+  // Brez predpone (npr. "UL VO", "UL STAT", "UL BM") → cela vrednost je kratica.
+  return s;
 }
 
-// Normalizacija kratice za ujemanje (delovni Excel vs UL_specifika): trim, uppercase, brez presledkov.
+// Normalizacija kratice za ujemanje (delovni Excel vs UL_specifika):
+// trim, uppercase, brez presledkov IN pomišljajev ("UL VO" = "UL-VO" = "ULVO").
 export function normKratica(s: string): string {
-  return (s ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  return (s ?? '').trim().toUpperCase().replace(/[\s‐-―-]/g, '');
 }
 
 export async function loadUlSpecifika(basePath = '/talpas'): Promise<void> {
@@ -44,7 +44,10 @@ export async function loadUlSpecifika(basePath = '/talpas'): Promise<void> {
       const row = rows[i] as unknown[];
       const postavka = String(row?.[0] ?? '').trim();
       if (!postavka) continue;
-      const znesek = parseFloat(String(row?.[1] ?? '').replace(',', '.')) || 0;
+      const rawZnesek = row?.[1];
+      const znesek = (rawZnesek === undefined || rawZnesek === null || String(rawZnesek).trim() === '')
+        ? null // brez mesečnega zneska
+        : (parseFloat(String(rawZnesek).replace(',', '.')) || 0);
       const kratica = extractKratica(postavka);
       if (!kratica) continue;
       ulFakultete.push({ kratica, znesek });

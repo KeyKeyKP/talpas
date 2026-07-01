@@ -15,7 +15,7 @@ import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
 import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka } from './lib/clientRegister';
-import { loadUlSpecifika } from './lib/ulSpecifika';
+import { loadUlSpecifika, getUlFakultete, normKratica } from './lib/ulSpecifika';
 import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
 function fmtDate(d: Date) {
@@ -135,7 +135,14 @@ export default function App() {
   };
 
   const filterForUniType = (allEntries: WorkEntry[], uniType: 'UP' | 'UL'): WorkEntry[] => {
+    // UL fakultete so avtoritativno definirane v UL_specifika (koda). To varuje prave UL kratice
+    // (npr. FA, NTF) pred napačno VIS-klasifikacijo zaradi ohlapnega ujemanja v registru.
+    const ulCodes = new Set(getUlFakultete().map(f => normKratica(f.kratica)));
     return allEntries.filter(e => {
+      const inUlSpecifika = ulCodes.has(normKratica(e.stranka));
+      if (uniType === 'UL' && inUlSpecifika) return true;
+      // VIS je posebej – nikoli pod UL/UP (razen če je izrecno v UL_specifika).
+      if (!inUlSpecifika && getUniverzaForStranka(e.stranka) === 'VIS') return false;
       if (isUniStranka(e.stranka, uniType)) return true;
       // Fallback: skupina field (handles register not yet loaded)
       if (e.skupina) {

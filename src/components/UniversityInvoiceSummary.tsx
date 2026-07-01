@@ -46,7 +46,7 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
               return (
                 <div key={f.kratica} className="flex items-baseline justify-between gap-3 px-4 py-2 text-sm">
                   <span className="text-slate-700 font-medium shrink-0 w-16">{f.kratica}</span>
-                  <span className="text-slate-500 tabular-nums shrink-0 w-24 text-right">{formatEur(f.vzdrzevanje)}</span>
+                  <span className="text-slate-500 tabular-nums shrink-0 w-24 text-right">{f.vzdrzevanje != null ? formatEur(f.vzdrzevanje) : '—'}</span>
                   <span className="flex-1 text-slate-800 tabular-nums text-right text-[13px]">{delo.join(' · ') || '—'}</span>
                 </div>
               );

@@ -92,7 +92,7 @@ export function formatDate(date: Date): string {
 // ── UL specifika: per-fakulteta obračun (SAMO UL) ─────────────────────────────
 export interface UlFakultetaCalc {
   kratica: string;
-  vzdrzevanje: number;                 // mesečni znesek osnovnega vzdrževanja (iz UL_specifika)
+  vzdrzevanje: number | null;          // mesečni znesek (null = brez zneska, samo postavka)
   urD: number;                         // D ure iz delovnih podatkov
   vrednostD: number;                   // urD × cena ure
   dp: Array<{ opis: string; znesek: number }>;
@@ -109,13 +109,14 @@ export interface UlCalc {
 }
 
 // Delovni Excel ima v 'stranka' kratico (AG, BF, …) – ujema se neposredno z UL_specifika kratico.
+// Brez presledkov IN pomišljajev ("UL VO" = "UL-VO" = "ULVO").
 function normUl(s: string): string {
-  return (s ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  return (s ?? '').trim().toUpperCase().replace(/[\s‐-―-]/g, '');
 }
 
 export function izracunajUL(
   entries: WorkEntry[],
-  ulFakultete: Array<{ kratica: string; znesek: number }>,
+  ulFakultete: Array<{ kratica: string; znesek: number | null }>,
   cenaUre: number
 ): UlCalc {
   const fakultete: UlFakultetaCalc[] = ulFakultete.map(f => {
@@ -128,7 +129,7 @@ export function izracunajUL(
     return { kratica: f.kratica, vzdrzevanje: f.znesek, urD, vrednostD: urD * cenaUre, dp, dpZnesek };
   });
 
-  const vzdrzevanjeTotal = fakultete.reduce((s, f) => s + f.vzdrzevanje, 0);
+  const vzdrzevanjeTotal = fakultete.reduce((s, f) => s + (f.vzdrzevanje ?? 0), 0);
   const deloTotal = fakultete.reduce((s, f) => s + f.vrednostD, 0);
   const dpTotal = fakultete.reduce((s, f) => s + f.dpZnesek, 0);
   const skupajBrezDDV = vzdrzevanjeTotal + deloTotal + dpTotal;

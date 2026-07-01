@@ -62,12 +62,21 @@ function normalizeZipPaths(zip: PizZip): PizZip {
 }
 
 function buildFacultyAppendixXml(entries: WorkEntry[]): string {
-  const byFakulteta = new Map<string, WorkEntry[]>();
+  const grouped = new Map<string, WorkEntry[]>();
   for (const e of entries) {
     const key = e.stranka ?? 'Neznana';
-    if (!byFakulteta.has(key)) byFakulteta.set(key, []);
-    byFakulteta.get(key)!.push(e);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(e);
   }
+  // Specifikacije razvrščene: Rektorat prvi, ostale po abecedi (enako kot postavke na 1. strani).
+  const jeRektoratKey = (k: string) => /rektorat/i.test(k);
+  const byFakulteta = new Map<string, WorkEntry[]>(
+    [...grouped.entries()].sort(([a], [b]) => {
+      const ar = jeRektoratKey(a), br = jeRektoratKey(b);
+      if (ar !== br) return ar ? -1 : 1;
+      return a.localeCompare(b, 'sl');
+    })
+  );
 
   // Exact table properties from standard template appendix
   const tblPr =
@@ -476,16 +485,21 @@ export async function generateUniversityInvoice(
     const ulCalc = izracunajUL(entries, ulFakultete, client.cenaDt);
 
     for (const f of ulCalc.fakultete) {
-      // Vrstica 1: osnovno vzdrževanje – VEDNO
+      // Vrstica 1: osnovno vzdrževanje – VEDNO. Če fakulteta nima mesečnega zneska,
+      // se izpiše samo postavka (prazni zneski, za ročni vpis).
+      const imaZnesek = f.vzdrzevanje != null;
       postavke.push({
         opis: `Osnovno vzdrževanje in podpora ${f.kratica}`,
-        kolicina: '1',
-        enota: 'kos',
-        cena: eur(f.vzdrzevanje),
-        vrednostBrezDDV: eur(f.vzdrzevanje),
-        stopnjaDDV: '22',
-        ddv: eur(f.vzdrzevanje * DDV_STOPNJA),
-        vrednostZDDV: eur(f.vzdrzevanje * (1 + DDV_STOPNJA)),
+        ...emptyAmounts,
+        ...(imaZnesek ? {
+          kolicina: '1',
+          enota: 'kos',
+          cena: eur(f.vzdrzevanje as number),
+          vrednostBrezDDV: eur(f.vzdrzevanje as number),
+          stopnjaDDV: '22',
+          ddv: eur((f.vzdrzevanje as number) * DDV_STOPNJA),
+          vrednostZDDV: eur((f.vzdrzevanje as number) * (1 + DDV_STOPNJA)),
+        } : {}),
       });
 
       // Vrstica 2: delo in nadgradnje – VEDNO prisotna; prazna, če ni D ur (za ročni vpis)
