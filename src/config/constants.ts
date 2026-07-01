@@ -2,6 +2,9 @@ export const DEFAULT_CENA_DT = 48.00;
 export const DEFAULT_CENA_DI = 70.00;
 export const DDV_STOPNJA = 0.22;
 
+// Urna postavka za UP (univerzitetni Word izvoz). UL ostane po svojem registru/DEFAULT.
+export const CENA_URE_UP = 64.00;
+
 // Besedilo nad tabelo računa – ločeno za UP in UL (univerzitetni workflow).
 // {obdobjeOd} in {obdobjeDo} se zamenjata z dejanskimi datumi (d.M.yyyy) pri renderju.
 export const UNI_INTRO_UP =
