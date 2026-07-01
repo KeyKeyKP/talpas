@@ -32,7 +32,8 @@ function parsePosta(value: string): { posta: string; kraj: string } {
 
 export async function loadClientRegister(basePath = '/talpas'): Promise<void> {
   try {
-    const res = await fetch(`${basePath}/assets/Stranke.xlsx`);
+    // Cache-bust: register se spreminja – vedno naloži svežega (brskalnik/CDN cache).
+    const res = await fetch(`${basePath}/assets/Stranke.xlsx?t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const ab = await res.arrayBuffer();
     const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });

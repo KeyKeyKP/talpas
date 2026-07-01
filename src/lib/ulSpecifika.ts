@@ -32,7 +32,8 @@ export function normKratica(s: string): string {
 
 export async function loadUlSpecifika(basePath = '/talpas'): Promise<void> {
   try {
-    const res = await fetch(`${basePath}/assets/UL_specifika.xlsx`);
+    // Cache-bust: podatkovna datoteka se spreminja – vedno naloži svežo (brskalnik/CDN cache).
+    const res = await fetch(`${basePath}/assets/UL_specifika.xlsx?t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const ab = await res.arrayBuffer();
     const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
