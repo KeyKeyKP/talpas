@@ -1,5 +1,6 @@
 import { WorkEntry, ClientConfig, InvoiceMetadata } from '../lib/types';
-import { izracunajUniverza, formatEur, formatNum } from '../lib/calculations';
+import { izracunajUniverza, izracunajUL, formatEur, formatNum } from '../lib/calculations';
+import { getUlFakultete } from '../lib/ulSpecifika';
 
 interface Props {
   entries: WorkEntry[];
@@ -20,6 +21,52 @@ function DottedRow({ label, value, bold }: { label: string; value: string; bold?
 
 export default function UniversityInvoiceSummary({ entries, client, metadata, onMetadataChange }: Props) {
   const calc = izracunajUniverza(entries, client.cenaDt, metadata.znesekVzdrzevanja);
+
+  // UL: zneski vzdrževanja so per-fakulteta iz UL_specifika (ne enotno polje).
+  if (client.id === 'ul') {
+    const ul = izracunajUL(entries, getUlFakultete(), client.cenaDt);
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h2 className="text-base font-semibold text-slate-800 mb-5">{client.imeNaRacunu}</h2>
+
+        <div className="mb-5 border border-slate-100 rounded-lg overflow-hidden">
+          <div className="bg-slate-50 px-4 py-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <span>UL fakultete · osnovno vzdrževanje / mesec</span>
+            <span>D ure · Dp</span>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-96 overflow-auto">
+            {ul.fakultete.length === 0 && (
+              <div className="px-4 py-3 text-sm text-red-600">UL_specifika.xlsx ni naložena – osveži stran.</div>
+            )}
+            {ul.fakultete.map(f => {
+              const delo: string[] = [];
+              if (f.urD > 0) delo.push(`D ${formatNum(f.urD)} ur = ${formatEur(f.vrednostD)}`);
+              if (f.dpZnesek > 0) delo.push(`Dp ${formatEur(f.dpZnesek)}`);
+              else if (f.dp.length > 0) delo.push('Dp (brez zneska)');
+              return (
+                <div key={f.kratica} className="flex items-baseline justify-between gap-3 px-4 py-2 text-sm">
+                  <span className="text-slate-700 font-medium shrink-0 w-16">{f.kratica}</span>
+                  <span className="text-slate-500 tabular-nums shrink-0 w-24 text-right">{formatEur(f.vzdrzevanje)}</span>
+                  <span className="flex-1 text-slate-800 tabular-nums text-right text-[13px]">{delo.join(' · ') || '—'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-4 max-w-md">
+          <DottedRow label={`Osnovno vzdrževanje (${ul.fakultete.length} fak.)`} value={formatEur(ul.vzdrzevanjeTotal)} />
+          {ul.deloTotal > 0 && <DottedRow label={`Delo in nadgradnje (${client.cenaDt.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} EUR/ur)`} value={formatEur(ul.deloTotal)} />}
+          {ul.dpTotal > 0 && <DottedRow label="Nadgradnja po ponudbi (Dp)" value={formatEur(ul.dpTotal)} />}
+          <div className="border-t border-slate-200 my-3" />
+          <DottedRow label="Osnova za DDV" value={formatEur(ul.skupajBrezDDV)} />
+          <DottedRow label="DDV 22 %" value={formatEur(ul.ddv)} />
+          <div className="border-t-2 border-slate-800 my-2" />
+          <DottedRow label="SKUPAJ ZA PLAČILO" value={formatEur(ul.skupajZDDV)} bold />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">

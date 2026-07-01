@@ -15,6 +15,7 @@ import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
 import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka } from './lib/clientRegister';
+import { loadUlSpecifika } from './lib/ulSpecifika';
 import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
 function fmtDate(d: Date) {
@@ -86,7 +87,7 @@ export default function App() {
   // Restore dialog
   const [restoreDialog, setRestoreDialog] = useState<RestoreDialogState>(null);
 
-  useEffect(() => { loadClientRegister('/talpas'); }, []);
+  useEffect(() => { loadClientRegister('/talpas'); loadUlSpecifika('/talpas'); }, []);
 
   // Auto-save standard flow (debounced 1s)
   useEffect(() => {

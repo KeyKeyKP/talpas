@@ -88,3 +88,51 @@ export function formatDate(date: Date): string {
   const m = (date.getMonth() + 1).toString().padStart(2, '0');
   return `${d}/${m}/${date.getFullYear()}`;
 }
+
+// ── UL specifika: per-fakulteta obračun (SAMO UL) ─────────────────────────────
+export interface UlFakultetaCalc {
+  kratica: string;
+  vzdrzevanje: number;                 // mesečni znesek osnovnega vzdrževanja (iz UL_specifika)
+  urD: number;                         // D ure iz delovnih podatkov
+  vrednostD: number;                   // urD × cena ure
+  dp: Array<{ opis: string; znesek: number }>;
+  dpZnesek: number;                    // seštevek Dp zneskov
+}
+export interface UlCalc {
+  fakultete: UlFakultetaCalc[];
+  vzdrzevanjeTotal: number;
+  deloTotal: number;
+  dpTotal: number;
+  skupajBrezDDV: number;
+  ddv: number;
+  skupajZDDV: number;
+}
+
+// Delovni Excel ima v 'stranka' kratico (AG, BF, …) – ujema se neposredno z UL_specifika kratico.
+function normUl(s: string): string {
+  return (s ?? '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+export function izracunajUL(
+  entries: WorkEntry[],
+  ulFakultete: Array<{ kratica: string; znesek: number }>,
+  cenaUre: number
+): UlCalc {
+  const fakultete: UlFakultetaCalc[] = ulFakultete.map(f => {
+    const rows = entries.filter(e => normUl(e.stranka) === normUl(f.kratica));
+    const urD = rows.filter(e => e.vrstaDela === 'D').reduce((s, e) => s + e.steviloUr, 0);
+    const dp = rows
+      .filter(e => e.vrstaDela === 'Dp')
+      .map(e => ({ opis: e.opis ?? '', znesek: e.dpZnesek ?? 0 }));
+    const dpZnesek = dp.reduce((s, d) => s + d.znesek, 0);
+    return { kratica: f.kratica, vzdrzevanje: f.znesek, urD, vrednostD: urD * cenaUre, dp, dpZnesek };
+  });
+
+  const vzdrzevanjeTotal = fakultete.reduce((s, f) => s + f.vzdrzevanje, 0);
+  const deloTotal = fakultete.reduce((s, f) => s + f.vrednostD, 0);
+  const dpTotal = fakultete.reduce((s, f) => s + f.dpZnesek, 0);
+  const skupajBrezDDV = vzdrzevanjeTotal + deloTotal + dpTotal;
+  const ddv = skupajBrezDDV * DDV_STOPNJA;
+
+  return { fakultete, vzdrzevanjeTotal, deloTotal, dpTotal, skupajBrezDDV, ddv, skupajZDDV: skupajBrezDDV + ddv };
+}

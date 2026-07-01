@@ -2,14 +2,14 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './types';
-import { izracunaj, izracunajUniverza, formatNum } from './calculations';
+import { izracunaj, izracunajUniverza, izracunajUL, formatNum } from './calculations';
+import { getUlFakultete } from './ulSpecifika';
 import {
   IZDAJATELJ,
   DDV_STOPNJA,
   UNI_INTRO_UP,
   UNI_INTRO_UL,
   UNI_VZDRZEVANJE_OPIS_UP,
-  UNI_VZDRZEVANJE_OPIS_UL,
 } from '../config/constants';
 
 function eur(v: number) {
@@ -454,62 +454,135 @@ export async function generateUniversityInvoice(
   const dec = decSl;
   const formatNum = decSl;
 
-  const fakulteteZDelom = calc.poFakultetah.filter(f => f.urD > 0 || f.dpZnesek > 0);
+  type Postavka = {
+    opis: string; kolicina: string; enota: string; cena: string;
+    vrednostBrezDDV: string; stopnjaDDV: string; ddv: string; vrednostZDDV: string;
+  };
+  const postavke: Postavka[] = [];
 
-  const postavke = [];
+  // Skupni seštevki – za UL iz UL_specifika, za UP iz izracunajUniverza.
+  let totalBrezDDV = calc.skupajBrezDDV;
+  let totalDDV = calc.ddv;
+  let totalZDDV = calc.skupajZDDV;
 
-  // Vrstica 1: vzdrževanje
-  if (calc.znesekVzdrzevanja > 0) {
-    postavke.push({
-      opis: isUL ? UNI_VZDRZEVANJE_OPIS_UL : UNI_VZDRZEVANJE_OPIS_UP,
-      kolicina: '1',
-      enota: 'kos',
-      cena: eur(calc.znesekVzdrzevanja),
-      vrednostBrezDDV: eur(calc.znesekVzdrzevanja),
-      stopnjaDDV: '22',
-      ddv: eur(calc.znesekVzdrzevanja * DDV_STOPNJA),
-      vrednostZDDV: eur(calc.znesekVzdrzevanja * (1 + DDV_STOPNJA)),
-    });
-  }
+  const emptyAmounts = { kolicina: '', enota: '', cena: '', vrednostBrezDDV: '', stopnjaDDV: '', ddv: '', vrednostZDDV: '' };
 
-  // Vrstica 2..N: "Delo in nadgradnje po naročilu in specifikaciji (...)" – Rektorat prvi.
-  // Navedene VSE fakultete; fakulteta brez ur ima prazne zneske (izpolni se ročno).
-  const jeRektorat = (ime: string) => /rektorat/i.test(ime);
-  const vseFakultete = [
-    ...calc.poFakultetah.filter(f => jeRektorat(f.fakulteta)),
-    ...calc.poFakultetah.filter(f => !jeRektorat(f.fakulteta)),
-  ];
-  for (const { fakulteta, urD } of vseFakultete) {
-    const opis = jeRektorat(fakulteta)
-      ? 'Delo in nadgradnje po naročilu in specifikaciji (Rektorat in skupna naročila za vse članice)'
-      : `Delo in nadgradnje po naročilu in specifikaciji (${fakulteta})`;
-    const imaUre = urD > 0;
-    const vrednost = urD * client.cenaDt;
-    postavke.push({
-      opis,
-      kolicina: imaUre ? formatNum(urD) : '',
-      enota: imaUre ? 'ur' : '',
-      cena: imaUre ? eur(client.cenaDt) : '',
-      vrednostBrezDDV: imaUre ? eur(vrednost) : '',
-      stopnjaDDV: imaUre ? '22' : '',
-      ddv: imaUre ? eur(vrednost * DDV_STOPNJA) : '',
-      vrednostZDDV: imaUre ? eur(vrednost * (1 + DDV_STOPNJA)) : '',
-    });
-  }
+  if (isUL) {
+    // ── UL: postavke iz UL_specifika (vse fakultete), delo/Dp iz delovnih podatkov ──
+    const ulFakultete = getUlFakultete();
+    if (ulFakultete.length === 0) {
+      throw new Error('UL specifika ni naložena (public/assets/UL_specifika.xlsx). Osveži stran in poskusi znova.');
+    }
+    const ulCalc = izracunajUL(entries, ulFakultete, client.cenaDt);
 
-  // "Delo po ponudbi {fakulteta}" for each faculty with Dp (ohranjeno – uravnoteži seštevke)
-  for (const { fakulteta, dpZnesek } of fakulteteZDelom) {
-    if (dpZnesek > 0) {
+    for (const f of ulCalc.fakultete) {
+      // Vrstica 1: osnovno vzdrževanje – VEDNO
       postavke.push({
-        opis: `Delo po ponudbi ${fakulteta}`,
+        opis: `Osnovno vzdrževanje in podpora ${f.kratica}`,
         kolicina: '1',
         enota: 'kos',
-        cena: eur(dpZnesek),
-        vrednostBrezDDV: eur(dpZnesek),
+        cena: eur(f.vzdrzevanje),
+        vrednostBrezDDV: eur(f.vzdrzevanje),
         stopnjaDDV: '22',
-        ddv: eur(dpZnesek * DDV_STOPNJA),
-        vrednostZDDV: eur(dpZnesek * (1 + DDV_STOPNJA)),
+        ddv: eur(f.vzdrzevanje * DDV_STOPNJA),
+        vrednostZDDV: eur(f.vzdrzevanje * (1 + DDV_STOPNJA)),
       });
+
+      // Vrstica 2: delo in nadgradnje – VEDNO prisotna; prazna, če ni D ur (za ročni vpis)
+      const imaUre = f.urD > 0;
+      postavke.push({
+        opis: `Delo in nadgradnje po naročilu in specifikaciji ${f.kratica}`,
+        ...emptyAmounts,
+        ...(imaUre ? {
+          kolicina: formatNum(f.urD),
+          enota: 'ur',
+          cena: eur(client.cenaDt),
+          vrednostBrezDDV: eur(f.vrednostD),
+          stopnjaDDV: '22',
+          ddv: eur(f.vrednostD * DDV_STOPNJA),
+          vrednostZDDV: eur(f.vrednostD * (1 + DDV_STOPNJA)),
+        } : {}),
+      });
+
+      // Vrstica 3: nadgradnja po ponudbi – SAMO če ima fakulteta Dp postavke
+      if (f.dp.length > 0) {
+        const opisi = f.dp.map(d => d.opis).filter(Boolean).join('; ');
+        const imaZnesek = f.dpZnesek > 0;
+        postavke.push({
+          opis: `Nadgradnja po ponudbi ${f.kratica}${opisi ? ': ' + opisi : ''}`,
+          ...emptyAmounts,
+          kolicina: '1',
+          enota: 'kos',
+          ...(imaZnesek ? {
+            cena: eur(f.dpZnesek),
+            vrednostBrezDDV: eur(f.dpZnesek),
+            stopnjaDDV: '22',
+            ddv: eur(f.dpZnesek * DDV_STOPNJA),
+            vrednostZDDV: eur(f.dpZnesek * (1 + DDV_STOPNJA)),
+          } : {}),
+        });
+      }
+    }
+
+    totalBrezDDV = ulCalc.skupajBrezDDV;
+    totalDDV = ulCalc.ddv;
+    totalZDDV = ulCalc.skupajZDDV;
+  } else {
+    // ── UP: vzdrževanje + Rektorat + vse fakultete (prazne, če ni ur) + Dp ──
+    const fakulteteZDelom = calc.poFakultetah.filter(f => f.urD > 0 || f.dpZnesek > 0);
+
+    if (calc.znesekVzdrzevanja > 0) {
+      postavke.push({
+        opis: UNI_VZDRZEVANJE_OPIS_UP,
+        kolicina: '1',
+        enota: 'kos',
+        cena: eur(calc.znesekVzdrzevanja),
+        vrednostBrezDDV: eur(calc.znesekVzdrzevanja),
+        stopnjaDDV: '22',
+        ddv: eur(calc.znesekVzdrzevanja * DDV_STOPNJA),
+        vrednostZDDV: eur(calc.znesekVzdrzevanja * (1 + DDV_STOPNJA)),
+      });
+    }
+
+    const jeRektorat = (ime: string) => /rektorat/i.test(ime);
+    const vseFakultete = [
+      ...calc.poFakultetah.filter(f => jeRektorat(f.fakulteta)),
+      ...calc.poFakultetah.filter(f => !jeRektorat(f.fakulteta)),
+    ];
+    for (const { fakulteta, urD } of vseFakultete) {
+      const opis = jeRektorat(fakulteta)
+        ? 'Delo in nadgradnje po naročilu in specifikaciji (Rektorat in skupna naročila za vse članice)'
+        : `Delo in nadgradnje po naročilu in specifikaciji (${fakulteta})`;
+      const imaUre = urD > 0;
+      const vrednost = urD * client.cenaDt;
+      postavke.push({
+        opis,
+        ...emptyAmounts,
+        ...(imaUre ? {
+          kolicina: formatNum(urD),
+          enota: 'ur',
+          cena: eur(client.cenaDt),
+          vrednostBrezDDV: eur(vrednost),
+          stopnjaDDV: '22',
+          ddv: eur(vrednost * DDV_STOPNJA),
+          vrednostZDDV: eur(vrednost * (1 + DDV_STOPNJA)),
+        } : {}),
+      });
+    }
+
+    for (const { fakulteta, dpZnesek } of fakulteteZDelom) {
+      if (dpZnesek > 0) {
+        postavke.push({
+          opis: `Delo po ponudbi ${fakulteta}`,
+          kolicina: '1',
+          enota: 'kos',
+          cena: eur(dpZnesek),
+          vrednostBrezDDV: eur(dpZnesek),
+          stopnjaDDV: '22',
+          ddv: eur(dpZnesek * DDV_STOPNJA),
+          vrednostZDDV: eur(dpZnesek * (1 + DDV_STOPNJA)),
+        });
+      }
     }
   }
 
@@ -563,10 +636,10 @@ export async function generateUniversityInvoice(
     ddvDp: eur(calc.vrednostDp * DDV_STOPNJA),
     dpZDDV: eur(calc.vrednostDp * (1 + DDV_STOPNJA)),
 
-    skupajBrezDDV: eur(calc.skupajBrezDDV),
-    skupajDDV: eur(calc.ddv),
-    skupajZDDV: eur(calc.skupajZDDV),
-    skupajZaPlacilo: eur(calc.skupajZDDV),
+    skupajBrezDDV: eur(totalBrezDDV),
+    skupajDDV: eur(totalDDV),
+    skupajZDDV: eur(totalZDDV),
+    skupajZaPlacilo: eur(totalZDDV),
 
     postavke,
 
