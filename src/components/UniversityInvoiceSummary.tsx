@@ -32,7 +32,7 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
         <div className="mb-5 border border-slate-100 rounded-lg overflow-hidden">
           <div className="bg-slate-50 px-4 py-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             <span>UL fakultete · osnovno vzdrževanje / mesec</span>
-            <span>D ure · Dp</span>
+            <span>D ure · D po ponudbi</span>
           </div>
           <div className="divide-y divide-slate-100 max-h-96 overflow-auto">
             {ul.fakultete.length === 0 && (
@@ -41,8 +41,8 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
             {ul.fakultete.map(f => {
               const delo: string[] = [];
               if (f.urD > 0) delo.push(`D ${formatNum(f.urD)} ur = ${formatEur(f.vrednostD)}`);
-              if (f.dpZnesek > 0) delo.push(`Dp ${formatEur(f.dpZnesek)}`);
-              else if (f.dp.length > 0) delo.push('Dp (brez zneska)');
+              if (f.dpZnesek > 0) delo.push(`D po ponudbi ${formatEur(f.dpZnesek)}`);
+              else if (f.dp.length > 0) delo.push('D po ponudbi (brez zneska)');
               return (
                 <div key={f.kratica} className="flex items-baseline justify-between gap-3 px-4 py-2 text-sm">
                   <span className="text-slate-700 font-medium shrink-0 w-16">{f.kratica}</span>
@@ -57,7 +57,7 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
         <div className="border-t border-slate-100 pt-4 max-w-md">
           <DottedRow label={`Osnovno vzdrževanje (${ul.fakultete.length} fak.)`} value={formatEur(ul.vzdrzevanjeTotal)} />
           {ul.deloTotal > 0 && <DottedRow label={`Delo in nadgradnje (${client.cenaDt.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} EUR/ur)`} value={formatEur(ul.deloTotal)} />}
-          {ul.dpTotal > 0 && <DottedRow label="Nadgradnja po ponudbi (Dp)" value={formatEur(ul.dpTotal)} />}
+          {ul.dpTotal > 0 && <DottedRow label="D po ponudbi" value={formatEur(ul.dpTotal)} />}
           <div className="border-t border-slate-200 my-3" />
           <DottedRow label="Osnova za DDV" value={formatEur(ul.skupajBrezDDV)} />
           <DottedRow label="DDV 22 %" value={formatEur(ul.ddv)} />
@@ -108,7 +108,7 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
               if (hasOnlyV) { parts.push('D 0 ur (samo V)'); }
               else {
                 if (urD > 0) parts.push(`D ${formatNum(urD)} ur = ${formatEur(vrednostD)}`);
-                if (dpZnesek > 0) parts.push(`Dp ${formatEur(dpZnesek)}`);
+                if (dpZnesek > 0) parts.push(`D po ponudbi ${formatEur(dpZnesek)}`);
               }
               return (
                 <div key={fakulteta} className="flex items-baseline justify-between px-4 py-2 text-sm">
@@ -129,7 +129,7 @@ export default function UniversityInvoiceSummary({ entries, client, metadata, on
             value={formatEur(calc.vrednostD)}
           />
         )}
-        {calc.vrednostDp > 0 && <DottedRow label="Skupaj Dp" value={formatEur(calc.vrednostDp)} />}
+        {calc.vrednostDp > 0 && <DottedRow label="Skupaj D po ponudbi" value={formatEur(calc.vrednostDp)} />}
         <div className="border-t border-slate-200 my-3" />
         <DottedRow label="Osnova za DDV" value={formatEur(calc.skupajBrezDDV)} />
         <DottedRow label="DDV 22 %" value={formatEur(calc.ddv)} />

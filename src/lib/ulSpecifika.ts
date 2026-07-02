@@ -30,6 +30,34 @@ export function normKratica(s: string): string {
   return (s ?? '').trim().toUpperCase().replace(/[\s‐-―-]/g, '');
 }
 
+// Znane tipkarske napake v UL_specifika.xlsx – kratica se drugod (Stranke.xlsx, delovni Excel)
+// piše pravilno, zato jo ob nalaganju popravimo, da se povsod ujema in pravilno izpiše.
+const KRATICA_TYPO: Record<string, string> = {
+  AGRTF: 'AGRFT', // v UL_specifika zamenjana T/F
+};
+
+// Delovni Excel poimenuje Rektorat kot "UL" ali "Univerza v Ljubljani".
+// Preslikava normaliziranega delovnega imena → kanonična UL_specifika kratica (normalizirana).
+const DELOVNI_ALIAS: Record<string, string> = {
+  UL: 'REKTORAT',
+  UNIVERZAVLJUBLJANI: 'REKTORAT',
+};
+
+// Kanonični ključ za ujemanje UL fakultet (delovni Excel ↔ UL_specifika ↔ register).
+// Enak za "UL", "Univerza v Ljubljani" in "Rektorat" → vsi so ista fakulteta.
+export function canonUlKey(name: string): string {
+  const n = normKratica(name);
+  return DELOVNI_ALIAS[n] ?? n;
+}
+
+// Fiksni vrstni red UL fakultet: Rektorat, UL Biomedicina, UL Statistika, UL Varstvo okolja,
+// nato vse ostale po abecedi. Uporabljeno na računu, v prilogi in v povzetku.
+const ORDER_FIXED = ['REKTORAT', 'ULBM', 'ULSTAT', 'ULVO'];
+export function ulOrderRank(name: string): number {
+  const i = ORDER_FIXED.indexOf(canonUlKey(name));
+  return i === -1 ? ORDER_FIXED.length : i;
+}
+
 export async function loadUlSpecifika(basePath = '/talpas'): Promise<void> {
   try {
     // Cache-bust: podatkovna datoteka se spreminja – vedno naloži svežo (brskalnik/CDN cache).
@@ -49,15 +77,15 @@ export async function loadUlSpecifika(basePath = '/talpas'): Promise<void> {
       const znesek = (rawZnesek === undefined || rawZnesek === null || String(rawZnesek).trim() === '')
         ? null // brez mesečnega zneska
         : (parseFloat(String(rawZnesek).replace(',', '.')) || 0);
-      const kratica = extractKratica(postavka);
-      if (!kratica) continue;
+      const extracted = extractKratica(postavka);
+      if (!extracted) continue;
+      const kratica = KRATICA_TYPO[extracted] ?? extracted;
       ulFakultete.push({ kratica, znesek });
     }
-    // Rektorat prvi, ostale abecedno po kratici.
-    const jeRektorat = (k: string) => /rektorat/i.test(k);
+    // Vrstni red: Rektorat, UL Biomedicina, UL Statistika, UL Varstvo okolja, nato po abecedi.
     ulFakultete.sort((a, b) => {
-      const ar = jeRektorat(a.kratica), br = jeRektorat(b.kratica);
-      if (ar !== br) return ar ? -1 : 1;
+      const ra = ulOrderRank(a.kratica), rb = ulOrderRank(b.kratica);
+      if (ra !== rb) return ra - rb;
       return a.kratica.localeCompare(b.kratica, 'sl');
     });
   } catch (e) {

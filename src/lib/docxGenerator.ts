@@ -3,7 +3,7 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './types';
 import { izracunaj, izracunajUniverza, izracunajUL, formatNum } from './calculations';
-import { getUlFakultete } from './ulSpecifika';
+import { getUlFakultete, canonUlKey, ulOrderRank } from './ulSpecifika';
 import {
   IZDAJATELJ,
   DDV_STOPNJA,
@@ -61,17 +61,28 @@ function normalizeZipPaths(zip: PizZip): PizZip {
   return zip;
 }
 
-function buildFacultyAppendixXml(entries: WorkEntry[]): string {
+function buildFacultyAppendixXml(entries: WorkEntry[], isUL = false): string {
+  // UL: delovni Excel poimenuje Rektorat kot "UL"/"Univerza v Ljubljani" → v prilogi prikaži "Rektorat".
+  const displayName = (s: string) =>
+    isUL && canonUlKey(s) === 'REKTORAT' ? 'Rektorat' : s;
+
   const grouped = new Map<string, WorkEntry[]>();
   for (const e of entries) {
     const key = e.stranka ?? 'Neznana';
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(e);
   }
-  // Specifikacije razvrščene: Rektorat prvi, ostale po abecedi (enako kot postavke na 1. strani).
+  // Vrstni red priloge – enak kot postavke na 1. strani.
+  // UL: Rektorat, UL Biomedicina, UL Statistika, UL Varstvo okolja, nato po abecedi.
+  // UP: Rektorat prvi, ostale po abecedi.
   const jeRektoratKey = (k: string) => /rektorat/i.test(k);
   const byFakulteta = new Map<string, WorkEntry[]>(
     [...grouped.entries()].sort(([a], [b]) => {
+      if (isUL) {
+        const ra = ulOrderRank(a), rb = ulOrderRank(b);
+        if (ra !== rb) return ra - rb;
+        return displayName(a).localeCompare(displayName(b), 'sl');
+      }
       const ar = jeRektoratKey(a), br = jeRektoratKey(b);
       if (ar !== br) return ar ? -1 : 1;
       return a.localeCompare(b, 'sl');
@@ -146,17 +157,17 @@ function buildFacultyAppendixXml(entries: WorkEntry[]): string {
     if (fakIdx > 0) xml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
     fakIdx++;
 
-    // Naslov strani = SAMO ime fakultete (bold, 11pt = sz 22, isti zamik)
-    const facRPr = `<w:rPr>${F}<w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>`;
+    // Naslov strani = SAMO ime fakultete (bold, 8pt = sz 16, enako kot tabela; isti zamik)
+    const facRPr = `<w:rPr>${F}<w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>`;
     const facPPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="-567" w:end="0"/>${facRPr}</w:pPr>`;
-    xml += `<w:p>${facPPr}<w:r>${facRPr}<w:t>${xmlEsc(fakulteta)}</w:t></w:r></w:p>`;
+    xml += `<w:p>${facPPr}<w:r>${facRPr}<w:t>${xmlEsc(displayName(fakulteta))}</w:t></w:r></w:p>`;
 
     // Spacing paragraph (4pt, same as original)
     xml += '<w:p><w:pPr><w:rPr><w:sz w:val="8"/><w:szCs w:val="8"/></w:rPr></w:pPr></w:p>';
 
-    // Header row (italic, top+bottom border, height 446)
+    // Header row (italic, top+bottom border). Brez fiksne višine – vrstica se prilagodi vsebini.
     const hdrRow =
-      '<w:tr><w:trPr><w:trHeight w:val="446"/></w:trPr>' +
+      '<w:tr>' +
       hdrCell(cols[0], 'Delo') +
       hdrCell(cols[1], 'Datum') +
       hdrCell(cols[2], 'Kontakt') +
@@ -166,22 +177,22 @@ function buildFacultyAppendixXml(entries: WorkEntry[]): string {
       hdrCell(cols[6], 'Opravil') +
       '</w:tr>';
 
-    // Data rows (bottom border only, height 594)
+    // Data rows (bottom border only). Brez fiksne višine – vrstica sledi količini besedila.
     const dataRows = rows.map(e =>
-      '<w:tr><w:trPr><w:trHeight w:val="594"/></w:trPr>' +
+      '<w:tr>' +
       dataCell(cols[0], e.delo ?? '') +
       dataCell(cols[1], formatObdobje(e.datumStr ?? formatDateSl(e.datum))) +
       dataCell(cols[2], e.kontakt ?? '') +
-      dataCell(cols[3], e.vrstaDela ?? '') +
+      dataCell(cols[3], e.vrstaDela === 'Dp' ? 'D po ponudbi' : (e.vrstaDela ?? '')) +
       dataCell(cols[4], decSl(e.steviloUr)) +
       dataCell(cols[5], e.opis ?? '') +
       dataCell(cols[6], e.opravil ?? '') +
       '</w:tr>'
     ).join('');
 
-    // Summary row (height 70, bCs style): "SKUPAJ za obračun" + število ur
+    // Summary row (bCs style): "SKUPAJ za obračun" + število ur. Brez fiksne višine.
     const sumRow =
-      '<w:tr><w:trPr><w:trHeight w:val="70"/></w:trPr>' +
+      '<w:tr>' +
       sumCell(cols[0], 'SKUPAJ za obračun') +
       sumCell(cols[1], '') +
       sumCell(cols[2], '') +
@@ -523,7 +534,7 @@ export async function generateUniversityInvoice(
         const opisi = f.dp.map(d => d.opis).filter(Boolean).join('; ');
         const imaZnesek = f.dpZnesek > 0;
         postavke.push({
-          opis: `Nadgradnja po ponudbi ${f.kratica}${opisi ? ': ' + opisi : ''}`,
+          opis: `D po ponudbi ${f.kratica}${opisi ? ': ' + opisi : ''}`,
           ...emptyAmounts,
           kolicina: '1',
           enota: 'kos',
@@ -587,7 +598,7 @@ export async function generateUniversityInvoice(
     for (const { fakulteta, dpZnesek } of fakulteteZDelom) {
       if (dpZnesek > 0) {
         postavke.push({
-          opis: `Delo po ponudbi ${fakulteta}`,
+          opis: `D po ponudbi ${fakulteta}`,
           kolicina: '1',
           enota: 'kos',
           cena: eur(dpZnesek),
@@ -731,7 +742,7 @@ export async function generateUniversityInvoice(
         paraStart = m.index;
       }
     }
-    const facultyXml = buildFacultyAppendixXml(sortedEntries);
+    const facultyXml = buildFacultyAppendixXml(sortedEntries, isUL);
     if (paraStart !== -1) {
       docXml = docXml.substring(0, paraStart) + facultyXml + '<w:p/>' + sectPr + '</w:body></w:document>';
     } else {

@@ -40,6 +40,7 @@ export default function UniversityWorkRow({ entry, onChange }: Props) {
           {(['D', 'V', 'Dp'] as WorkType[]).map(t => (
             <button
               key={t}
+              title={t === 'Dp' ? 'D po ponudbi' : undefined}
               onClick={() => setField('vrstaDela', entry.vrstaDela === t ? null : t)}
               className={`h-7 px-2.5 text-xs rounded-full border font-medium transition-all duration-150 ${
                 entry.vrstaDela === t ? (TYPE_ACTIVE[t as string] ?? '') : TYPE_GHOST

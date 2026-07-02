@@ -15,7 +15,7 @@ import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
 import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka } from './lib/clientRegister';
-import { loadUlSpecifika, getUlFakultete, normKratica } from './lib/ulSpecifika';
+import { loadUlSpecifika, getUlFakultete, normKratica, canonUlKey } from './lib/ulSpecifika';
 import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
 function fmtDate(d: Date) {
@@ -139,7 +139,12 @@ export default function App() {
     // (npr. FA, NTF) pred napačno VIS-klasifikacijo zaradi ohlapnega ujemanja v registru.
     const ulCodes = new Set(getUlFakultete().map(f => normKratica(f.kratica)));
     return allEntries.filter(e => {
-      const inUlSpecifika = ulCodes.has(normKratica(e.stranka));
+      // Evropska pravna fakulteta (EPF) je VIS, ne UL. Ohlapno ujemanje v registru jo sicer
+      // veže na "Pravna fakulteta" (UL), zato jo izrecno izključimo iz UL/UP toka.
+      const nk = normKratica(e.stranka);
+      if (nk === 'EPF' || nk.includes('EVROPSKAPRAVNAFAKULTETA')) return false;
+
+      const inUlSpecifika = ulCodes.has(canonUlKey(e.stranka));
       if (uniType === 'UL' && inUlSpecifika) return true;
       // VIS je posebej – nikoli pod UL/UP (razen če je izrecno v UL_specifika).
       if (!inUlSpecifika && getUniverzaForStranka(e.stranka) === 'VIS') return false;

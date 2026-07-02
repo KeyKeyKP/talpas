@@ -25,7 +25,7 @@ export default function UniversityWorkTable({ entries, onChange }: Props) {
     const dpCount = rows.filter(r => r.vrstaDela === 'Dp').length;
     const stats = [
       dUr > 0 && `D: ${dUr.toLocaleString('sl-SI', { minimumFractionDigits: 2 })} ur`,
-      dpCount > 0 && `Dp: ${dpCount} postavk`,
+      dpCount > 0 && `D po ponudbi: ${dpCount} postavk`,
     ].filter(Boolean).join(' · ');
 
     return (
