@@ -3,7 +3,7 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './types';
 import { izracunaj, izracunajUniverza, izracunajUL, formatNum } from './calculations';
-import { getUlFakultete, canonUlKey, ulOrderRank } from './ulSpecifika';
+import { getUlFakultete, ulNazivZaPrikaz, ulOrderRank } from './ulSpecifika';
 import {
   IZDAJATELJ,
   DDV_STOPNJA,
@@ -62,9 +62,8 @@ function normalizeZipPaths(zip: PizZip): PizZip {
 }
 
 function buildFacultyAppendixXml(entries: WorkEntry[], isUL = false): string {
-  // UL: delovni Excel poimenuje Rektorat kot "UL"/"Univerza v Ljubljani" → v prilogi prikaži "Rektorat".
-  const displayName = (s: string) =>
-    isUL && canonUlKey(s) === 'REKTORAT' ? 'Rektorat' : s;
+  // UL: prikaži polni naziv fakultete (npr. delovno "UL" → "Rektorat"). Za UP pusti delovno ime.
+  const displayName = (s: string) => (isUL ? ulNazivZaPrikaz(s) : s);
 
   const grouped = new Map<string, WorkEntry[]>();
   for (const e of entries) {

@@ -1,6 +1,6 @@
 import { WorkEntry, ClientConfig, InvoiceCalc, UniversityCalc } from './types';
 import { DDV_STOPNJA } from '../config/constants';
-import { canonUlKey } from './ulSpecifika';
+import { resolveUlKratica } from './ulSpecifika';
 
 export function izracunaj(
   entries: WorkEntry[],
@@ -109,8 +109,8 @@ export interface UlCalc {
   skupajZDDV: number;
 }
 
-// Delovni Excel ima v 'stranka' kratico (AG, BF, …) ali alias (npr. "UL" = Rektorat).
-// canonUlKey normalizira in razreši aliase, da se ujema z UL_specifika kratico.
+// Delovni Excel ima v 'stranka' kratico (AG, BF, …), alias ("UL"=Rektorat) ali POLNI naziv fakultete.
+// resolveUlKratica razreši vse tri oblike na kanonično UL_specifika kratico.
 
 export function izracunajUL(
   entries: WorkEntry[],
@@ -118,7 +118,7 @@ export function izracunajUL(
   cenaUre: number
 ): UlCalc {
   const fakultete: UlFakultetaCalc[] = ulFakultete.map(f => {
-    const rows = entries.filter(e => canonUlKey(e.stranka) === canonUlKey(f.kratica));
+    const rows = entries.filter(e => resolveUlKratica(e.stranka) === f.kratica);
     const urD = rows.filter(e => e.vrstaDela === 'D').reduce((s, e) => s + e.steviloUr, 0);
     const dp = rows
       .filter(e => e.vrstaDela === 'Dp')

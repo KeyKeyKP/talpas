@@ -15,7 +15,7 @@ import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
 import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka } from './lib/clientRegister';
-import { loadUlSpecifika, getUlFakultete, normKratica, canonUlKey } from './lib/ulSpecifika';
+import { loadUlSpecifika, getUlFakultete, normKratica, resolveUlKratica } from './lib/ulSpecifika';
 import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
 function fmtDate(d: Date) {
@@ -26,6 +26,26 @@ function addDays(days: number) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return fmtDate(d);
+}
+
+// Diagnostika ujemanja UL fakultet: izpiše NAJDENE (imajo vnose), fakultete BREZ vnosov
+// in NEUJEMANE delovne vnose (stranka se ne ujema z nobeno UL_specifika fakulteto).
+function logUlMatching(entries: WorkEntry[]) {
+  const found = new Map<string, number>();      // kratica → št. vnosov
+  const unmatched = new Map<string, number>();  // delovna stranka → št. vnosov
+  for (const e of entries) {
+    const k = resolveUlKratica(e.stranka);
+    if (k) found.set(k, (found.get(k) ?? 0) + 1);
+    else unmatched.set(e.stranka, (unmatched.get(e.stranka) ?? 0) + 1);
+  }
+  const vse = getUlFakultete();
+  console.log('=== UL ujemanje fakultet ===');
+  console.log('✓ NAJDENE (kratica × št. vnosov):',
+    [...found.entries()].map(([k, c]) => `${k} (${c})`).join(', ') || '—');
+  console.log('· Fakultete BREZ vnosov:',
+    vse.filter(f => !found.has(f.kratica)).map(f => `${f.kratica} – ${f.naziv}`).join(', ') || '—');
+  console.log('✗ NEUJEMANI vnosi (stranka × št.):',
+    [...unmatched.entries()].map(([s, c]) => `"${s}" (${c})`).join(', ') || '—');
 }
 
 const EMPTY_METADATA: InvoiceMetadata = {
@@ -137,14 +157,14 @@ export default function App() {
   const filterForUniType = (allEntries: WorkEntry[], uniType: 'UP' | 'UL'): WorkEntry[] => {
     // UL fakultete so avtoritativno definirane v UL_specifika (koda). To varuje prave UL kratice
     // (npr. FA, NTF) pred napačno VIS-klasifikacijo zaradi ohlapnega ujemanja v registru.
-    const ulCodes = new Set(getUlFakultete().map(f => normKratica(f.kratica)));
     return allEntries.filter(e => {
       // Evropska pravna fakulteta (EPF) je VIS, ne UL. Ohlapno ujemanje v registru jo sicer
       // veže na "Pravna fakulteta" (UL), zato jo izrecno izključimo iz UL/UP toka.
       const nk = normKratica(e.stranka);
       if (nk === 'EPF' || nk.includes('EVROPSKAPRAVNAFAKULTETA')) return false;
 
-      const inUlSpecifika = ulCodes.has(canonUlKey(e.stranka));
+      // Ujemanje z UL_specifika po kratici ALI polnem nazivu (resolveUlKratica).
+      const inUlSpecifika = resolveUlKratica(e.stranka) !== null;
       if (uniType === 'UL' && inUlSpecifika) return true;
       // VIS je posebej – nikoli pod UL/UP (razen če je izrecno v UL_specifika).
       if (!inUlSpecifika && getUniverzaForStranka(e.stranka) === 'VIS') return false;
@@ -163,6 +183,8 @@ export default function App() {
     const clientId = uniType === 'UP' ? 'up' : 'ul';
     const foundClient = CLIENTS.find(c => c.id === clientId);
     const filtered = filterForUniType(allEntries, uniType);
+
+    if (uniType === 'UL') logUlMatching(filtered);
 
     setUniSelectedType(uniType);
     setUniClient(foundClient);
