@@ -345,11 +345,13 @@ export async function generateDocx(
     idDDV: client.idDDV ?? '',
 
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
-    sklic: 'SI 00 ' + (metadata.stevilkaRacuna ?? ''),
-    datumRacuna: metadata.datumRacuna ?? '',
-    rokPlacila: metadata.rokPlacila ?? '',
-    obdobjeOd: metadata.obdobjeOd ?? '',
-    obdobjeDo: metadata.obdobjeDo ?? '',
+    // Template že vsebuje "Sklic: SI 00 {sklic}" – zato tu podamo SAMO številko (brez "SI 00" prefiksa).
+    sklic: metadata.stevilkaRacuna ?? '',
+    // Datumi v slovenski obliki s pikami (d.M.yyyy), npr. "2.7.2026" (ne "02/07/2026").
+    datumRacuna: formatObdobje(metadata.datumRacuna ?? ''),
+    rokPlacila: formatObdobje(metadata.rokPlacila ?? ''),
+    obdobjeOd: formatObdobje(metadata.obdobjeOd ?? ''),
+    obdobjeDo: formatObdobje(metadata.obdobjeDo ?? ''),
 
     opisVzdrzevanja: (metadata.opisVzdrzevanja || 'Vzdrževanje po Pogodbi o vzdrževanju IT opreme') ?? '',
     znesekVzdrzevanja: eur(calc.znesekVzdrzevanja),
@@ -438,13 +440,36 @@ export async function generateDocx(
     throw error;
   }
 
-  // 6. Generiraj blob ŠELE PO renderju
-  const blob = doc.getZip().generate({
+  // 6. Stranka brez vnosov (samo mesečni pavšal): odstrani prilogo in prelom strani pred njo,
+  //    da račun vsebuje SAMO vrstico vzdrževanja (brez prazne priloge). Naslov priloge je v
+  //    predlogi statičen (zunaj {#priloga} zanke), zato ga je treba izrezati programsko.
+  const outZip = doc.getZip();
+  if (sortedEntries.length === 0) {
+    let docXml = outZip.files['word/document.xml'].asText();
+    // Odstrani edini prelom strani (pred prilogo)
+    docXml = docXml.replace(/<w:r\b[^>]*>\s*<w:br w:type="page"\/>\s*<\/w:r>/, '');
+    // Odstrani prilogo: od odstavka z naslovom "Priloga ra…" do <w:sectPr>
+    const headIdx = docXml.indexOf('Priloga ra');
+    const sectStart = docXml.lastIndexOf('<w:sectPr');
+    if (headIdx !== -1 && sectStart !== -1 && headIdx < sectStart) {
+      const paraOpen = /<w:p(?:>|\s)/g;
+      let paraStart = -1;
+      let m: RegExpExecArray | null;
+      while ((m = paraOpen.exec(docXml)) !== null && m.index < headIdx) paraStart = m.index;
+      if (paraStart !== -1) {
+        docXml = docXml.substring(0, paraStart) + docXml.substring(sectStart);
+      }
+    }
+    outZip.file('word/document.xml', docXml);
+  }
+
+  // 7. Generiraj blob ŠELE PO renderju
+  const blob = outZip.generate({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  // 7. Shrani
+  // 8. Shrani
   saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
 }
 

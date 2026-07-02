@@ -14,7 +14,7 @@ import { parseExcel, getStrankeStats } from './lib/excelParser';
 import { applyBillingRules } from './lib/billingEngine';
 import { WorkEntry, ClientConfig, InvoiceMetadata } from './lib/types';
 import { CLIENTS } from './data/clients';
-import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka } from './lib/clientRegister';
+import { loadClientRegister, findClientWithRegister, getUniverzaForStranka, isUniStranka, isVisStranka, getPausalStandardClients, resolveRegisterKratica } from './lib/clientRegister';
 import { loadUlSpecifika, getUlFakultete, normKratica, resolveUlKratica } from './lib/ulSpecifika';
 import { saveWorkState, loadWorkState, deleteWorkState } from './lib/workStateStore';
 
@@ -145,7 +145,17 @@ export default function App() {
       const allStats = getStrankeStats(parsed);
       // Exclude UP, UL, VIS entries from standard client list
       const filtered = allStats.filter(({ name }) => getUniverzaForStranka(name) === '');
-      setStranke(filtered);
+
+      // Dodaj stranke iz registra z mesečnim pavšalom (>0) in praznim stolpcem univerza (F),
+      // ki NIMAJO nobenega vnosa v uvoženem Excelu – da se lahko obračuna mesečni pavšal.
+      const obstojeceKratice = new Set(
+        filtered.map(({ name }) => resolveRegisterKratica(name)).filter(Boolean) as string[]
+      );
+      const pavsalneStranke = getPausalStandardClients()
+        .filter(e => !obstojeceKratice.has(e.kratica))
+        .map(e => ({ name: e.naziv || e.kratica, count: 0 }));
+
+      setStranke([...filtered, ...pavsalneStranke]);
       setExcelFileName(file.name);
       setExportedStranke(new Set());
       setStep(2);
@@ -440,7 +450,8 @@ export default function App() {
   };
 
   const canProceedToStep3 =
-    (!uniMode && !visMode && selectedStranka !== null && entries.length > 0) ||
+    (!uniMode && !visMode && selectedStranka !== null &&
+      (entries.length > 0 || (client?.znesekVzdrzevanja ?? 0) > 0)) ||
     (visMode && visSelectedFakulteta !== null && visEntries.length > 0);
 
   const handleReset = () => {

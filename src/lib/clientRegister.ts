@@ -89,6 +89,17 @@ export function isInRegister(strankaName: string): boolean {
   return findInRegister(strankaName) !== undefined;
 }
 
+// Razreši ime stranke na kanonično kratico iz registra (za deduplikacijo seznamov).
+export function resolveRegisterKratica(strankaName: string): string | null {
+  return findInRegister(strankaName)?.kratica ?? null;
+}
+
+// Standardne stranke z mesečnim pavšalom (>0) in PRAZNIM stolpcem univerza (F).
+// Uporabljeno za prikaz strank, ki nimajo vnosov v uvoženem Excelu, a jih je treba obračunati (pavšal).
+export function getPausalStandardClients(): RegisterEntry[] {
+  return Array.from(register.values()).filter(e => e.mesecniPausal > 0 && e.univerza === '');
+}
+
 export function getUniverzaForStranka(name: string): 'UL' | 'UP' | 'VIS' | '' {
   return findInRegister(name)?.univerza ?? '';
 }
