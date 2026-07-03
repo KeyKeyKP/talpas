@@ -215,8 +215,8 @@ export async function generateDocx(
   client: ClientConfig,
   metadata: InvoiceMetadata,
   basePath = '/talpas',
-  // Standardne stranke: vrstice priloge naj bodo reactive (visoke toliko kot besedilo).
-  // VIS klic to izklopi (false), da ostane VIS izvoz nespremenjen.
+  // Vrstice priloge naj bodo reactive (visoke toliko kot besedilo) — velja za
+  // standardne stranke in VIS (UP/UL uporablja svojo funkcijo).
   reactiveAppendixRows = true
 ): Promise<void> {
   // 1. Fetch template
@@ -815,6 +815,7 @@ export async function generateVisInvoice(
     ...e,
     vrstaDela: e.vrstaDela === 'D' ? 'Dt' : e.vrstaDela,
   }));
-  // VIS ostane nespremenjen (reactiveAppendixRows = false).
-  return generateDocx(mappedEntries, client, metadata, basePath, false);
+  // VIS: vrstice priloge naj bodo reactive (visoke toliko kot besedilo), enako kot
+  // standardne stranke in UP/UL.
+  return generateDocx(mappedEntries, client, metadata, basePath, true);
 }
