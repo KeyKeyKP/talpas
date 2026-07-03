@@ -214,7 +214,10 @@ export async function generateDocx(
   entries: WorkEntry[],
   client: ClientConfig,
   metadata: InvoiceMetadata,
-  basePath = '/talpas'
+  basePath = '/talpas',
+  // Standardne stranke: vrstice priloge naj bodo reactive (visoke toliko kot besedilo).
+  // VIS klic to izklopi (false), da ostane VIS izvoz nespremenjen.
+  reactiveAppendixRows = true
 ): Promise<void> {
   // 1. Fetch template
   const response = await fetch(`${basePath}/assets/template_racun.docx`);
@@ -461,6 +464,18 @@ export async function generateDocx(
       }
     }
     outZip.file('word/document.xml', docXml);
+  } else if (reactiveAppendixRows) {
+    // Vrstice priloge (stran 2+) naredi reactive: odstrani fiksno <w:trHeight> iz vrstic
+    // tabele priloge, da se višina prilagodi količini besedila (enako kot UP/UL priloge).
+    // Prilogo omeji na del za naslovom "Priloga ra…"; tabela računa (pred naslovom) ostane
+    // nedotaknjena.
+    let docXml = outZip.files['word/document.xml'].asText();
+    const headIdx = docXml.indexOf('Priloga ra');
+    if (headIdx !== -1) {
+      const head = docXml.substring(0, headIdx);
+      const appendix = docXml.substring(headIdx).replace(/<w:trHeight\b[^>]*\/>/g, '');
+      outZip.file('word/document.xml', head + appendix);
+    }
   }
 
   // 7. Generiraj blob ŠELE PO renderju
@@ -800,5 +815,6 @@ export async function generateVisInvoice(
     ...e,
     vrstaDela: e.vrstaDela === 'D' ? 'Dt' : e.vrstaDela,
   }));
-  return generateDocx(mappedEntries, client, metadata, basePath);
+  // VIS ostane nespremenjen (reactiveAppendixRows = false).
+  return generateDocx(mappedEntries, client, metadata, basePath, false);
 }
