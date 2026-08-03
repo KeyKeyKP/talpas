@@ -48,12 +48,20 @@ export async function loadClientRegister(basePath = '/talpas'): Promise<void> {
 
       const { posta, kraj } = parsePosta(String(row[3] ?? '').trim());
       const mesecniPausal = parseFloat(String(row[6] ?? '')) || 0;
-      const cenaDt = parseFloat(String(row[7] ?? '')) || DEFAULT_CENA_DT;
-      const cenaDi = parseFloat(String(row[8] ?? '')) || DEFAULT_CENA_DI;
-      const gostovanj = parseFloat(String(row[9] ?? '')) || 0;
+      const urnaPostavkaVis = parseFloat(String(row[7] ?? '')) || 0;
       const univerzaRaw = String(row[5] ?? '').trim().toUpperCase();
       const univerza: 'UL' | 'UP' | 'VIS' | '' =
         univerzaRaw === 'UL' ? 'UL' : univerzaRaw === 'UP' ? 'UP' : univerzaRaw === 'VIS' ? 'VIS' : '';
+
+      // Stolpec H ("Urna postavka VIS") velja SAMO za univerzitetne stranke (VIS/UL/UP) —
+      // zanje je to njihova cenaDt. Za standardne stranke sta pravi Dt/Di v stolpcih I/J.
+      const cenaDt = univerza
+        ? (urnaPostavkaVis || DEFAULT_CENA_DT)
+        : (parseFloat(String(row[8] ?? '')) || DEFAULT_CENA_DT);
+      const cenaDi = univerza
+        ? DEFAULT_CENA_DI
+        : (parseFloat(String(row[9] ?? '')) || DEFAULT_CENA_DI);
+      const gostovanj = parseFloat(String(row[10] ?? '')) || 0;
 
       const entry: RegisterEntry = {
         kratica,
