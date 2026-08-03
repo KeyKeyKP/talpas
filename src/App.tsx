@@ -200,11 +200,16 @@ export default function App() {
     setUniClient(foundClient);
     setUniEntries(filtered);
 
+    // Če stranka v tem mesecu nima nobenega vnosa (npr. samo pavšal, brez opravljenega dela),
+    // uporabi mesec iz celotne uvožene datoteke, da obdobjeOd/obdobjeDo nista prazna.
     const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
+    const fallbackDates = validDates.length
+      ? validDates
+      : allEntries.map(e => e.datum).filter(d => !isNaN(d.getTime()));
     let obdobjeOd = '';
     let obdobjeDo = '';
-    if (validDates.length) {
-      const anyDate = validDates[0];
+    if (fallbackDates.length) {
+      const anyDate = fallbackDates[0];
       const year = anyDate.getFullYear();
       const month = anyDate.getMonth();
       obdobjeOd = fmtDate(new Date(year, month, 1));
@@ -316,11 +321,16 @@ export default function App() {
     const withRules = applyBillingRules(filtered, cfg);
     setEntries(withRules);
 
+    // Če stranka v tem mesecu nima nobenega vnosa (npr. samo pavšal, brez opravljenega dela),
+    // uporabi mesec iz celotne uvožene datoteke, da obdobjeOd/obdobjeDo nista prazna.
     const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
+    const fallbackDates = validDates.length
+      ? validDates
+      : allEntries.map(e => e.datum).filter(d => !isNaN(d.getTime()));
     let obdobjeOd = '';
     let obdobjeDo = '';
-    if (validDates.length) {
-      const anyDate = validDates[0];
+    if (fallbackDates.length) {
+      const anyDate = fallbackDates[0];
       const year = anyDate.getFullYear();
       const month = anyDate.getMonth();
       obdobjeOd = fmtDate(new Date(year, month, 1));
@@ -368,11 +378,16 @@ export default function App() {
     const filtered = visAllEntries.filter(e => e.stranka === fakulteta);
     setVisEntries(filtered);
 
+    // Če fakulteta v tem mesecu nima nobenega vnosa, uporabi mesec iz celotne
+    // uvožene datoteke, da obdobjeOd/obdobjeDo nista prazna.
     const validDates = filtered.map(e => e.datum).filter(d => !isNaN(d.getTime()));
+    const fallbackDates = validDates.length
+      ? validDates
+      : visAllEntries.map(e => e.datum).filter(d => !isNaN(d.getTime()));
     let obdobjeOd = '', obdobjeDo = '';
-    if (validDates.length) {
-      const year = validDates[0].getFullYear();
-      const month = validDates[0].getMonth();
+    if (fallbackDates.length) {
+      const year = fallbackDates[0].getFullYear();
+      const month = fallbackDates[0].getMonth();
       obdobjeOd = fmtDate(new Date(year, month, 1));
       obdobjeDo = fmtDate(new Date(year, month + 1, 0));
     }
