@@ -46,7 +46,10 @@ export function formatEur(value: number): string {
 }
 
 export function formatNum(value: number, decimals = 2): string {
-  return value.toLocaleString('sl-SI', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const s = value.toLocaleString('sl-SI', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  // Kol. (ure): odstrani odvečne ničle na koncu → "1,00"→"1", "0,50"→"0,5", "0,25"→"0,25".
+  // Velja za vse tipe strank. EUR zneski (formatEur) OHRANIJO dve decimalki.
+  return s.replace(/,00$/, '').replace(/(,\d)0$/, '$1');
 }
 
 export function izracunajUniverza(
