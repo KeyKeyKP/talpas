@@ -3,3 +3,6 @@ dist
 .env
 .DS_Store
 *.local
+
+# Excel temp/lock files
+~$*.xlsx
