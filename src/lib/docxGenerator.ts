@@ -37,6 +37,13 @@ function formatDateSl(d: Date) {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
 
+// Sklic (SI 00 ...) mora imeti dvomestno leto: vodilno štirimestno letnico (npr. 2026)
+// pretvori v zadnji dve cifri (26). Ostanek številke računa ostane nespremenjen.
+// Velja za vse tipe strank (standardne, UP, UL, VIS).
+function sklicIzStevilke(stevilkaRacuna: string): string {
+  return (stevilkaRacuna ?? '').trim().replace(/^(?:19|20)(\d{2})/, '$1');
+}
+
 async function loadTemplate(basePath: string, filename = 'template_racun.docx'): Promise<ArrayBuffer> {
   const res = await fetch(`${basePath}/assets/${filename}`);
   if (!res.ok) throw new Error(`Predloga ${filename} ni najdena (${res.status}). Naloži jo v public/assets/.`);
@@ -349,7 +356,8 @@ export async function generateDocx(
 
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
     // Template že vsebuje "Sklic: SI 00 {sklic}" – zato tu podamo SAMO številko (brez "SI 00" prefiksa).
-    sklic: metadata.stevilkaRacuna ?? '',
+    // Leto v sklicu mora biti dvomestno (2026 -> 26).
+    sklic: sklicIzStevilke(metadata.stevilkaRacuna ?? ''),
     // Datumi v slovenski obliki s pikami (d.M.yyyy), npr. "2.7.2026" (ne "02/07/2026").
     datumRacuna: formatObdobje(metadata.datumRacuna ?? ''),
     rokPlacila: formatObdobje(metadata.rokPlacila ?? ''),
@@ -672,7 +680,8 @@ export async function generateUniversityInvoice(
     idDDV: client.idDDV ?? '',
 
     stevilkaRacuna: metadata.stevilkaRacuna ?? '',
-    sklic: metadata.stevilkaRacuna ?? '',
+    // Leto v sklicu mora biti dvomestno (2026 -> 26).
+    sklic: sklicIzStevilke(metadata.stevilkaRacuna ?? ''),
     datumRacuna: formatObdobje(metadata.datumRacuna ?? ''),
     rokPlacila: formatObdobje(metadata.rokPlacila ?? ''),
     obdobjeOd,
