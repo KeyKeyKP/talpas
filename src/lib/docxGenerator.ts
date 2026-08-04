@@ -492,8 +492,9 @@ export async function generateDocx(
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  // 8. Shrani
-  saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
+  // 8. Shrani – ime: "{številka računa} {polno ime stranke}.docx"
+  const filename = (metadata.stevilkaRacuna || 'racun') + ' ' + (client.imeNaRacunu || '') + '.docx';
+  saveAs(blob, filename);
 }
 
 // Reformat obdobje string (dd/mm/yyyy, d.m.yyyy, ...) → d.M.yyyy (npr. "1.5.2026")
@@ -802,7 +803,9 @@ export async function generateUniversityInvoice(
 
     renderedZip.file('word/document.xml', docXml);
     const blob = renderedZip.generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    saveAs(blob, `Racun_${metadata.stevilkaRacuna}_${client.id}.docx`);
+    // Ime: "{številka računa} {polno ime stranke}.docx"
+    const filename = (metadata.stevilkaRacuna || 'racun') + ' ' + (client.imeNaRacunu || '') + '.docx';
+    saveAs(blob, filename);
   } catch (error: unknown) {
     const e = error as { properties?: { errors?: unknown }; message?: string };
     console.error('Docx error (uni):', e.message);
