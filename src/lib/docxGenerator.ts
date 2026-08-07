@@ -382,7 +382,7 @@ export async function generateDocx(
     delo: e.delo ?? '',
     datum: e.datumStr ?? formatDateSl(e.datum),
     kontakt: e.kontakt ?? '',
-    vrstaDela: e.vrstaDela === null ? '–' : (e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : e.vrstaDela),
+    vrstaDela: e.vrstaDela === null ? '' : (e.jeVkljucena && e.vrstaDela !== 'V' ? 'V (vklj.)' : e.vrstaDela),
     steviloUr: formatNum(e.steviloUr),
     opis: e.opis ?? '',
     opravil: e.opravil ?? '',
