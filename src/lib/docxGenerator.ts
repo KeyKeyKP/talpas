@@ -68,6 +68,57 @@ function normalizeZipPaths(zip: PizZip): PizZip {
   return zip;
 }
 
+// Nastavi jezik dokumenta na slovenščino (sl-SI), da Word ob odprtju uporabi
+// slovenski črkovalnik. Kliči PO doc.render() in PRED zip.generate().
+// Velja za vse generatorje (standardni, UP, UL, VIS).
+function nastaviJezikSlovenscina(zip: PizZip): void {
+  const LANG = '<w:lang w:val="sl-SI"/>';
+
+  // Obstoječim <w:lang> elementom nastavi w:val na sl-SI (npr. en-US → sl-SI).
+  const preklopiLang = (xml: string) =>
+    xml.replace(/<w:lang\b[^>]*?\/?>/g, tag =>
+      tag.includes('w:val="')
+        ? tag.replace(/w:val="[^"]*"/, 'w:val="sl-SI"')
+        : tag.replace('<w:lang', '<w:lang w:val="sl-SI"')
+    );
+
+  // V <w:rPrDefault> zapiši privzeti jezik dokumenta.
+  const nastaviPrivzetiJezik = (xml: string) => {
+    if (!xml.includes('w:rPrDefault')) return xml;
+    // a) rPrDefault z obstoječim rPr – dodaj <w:lang> na konec rPr (tam je po shemi njegovo mesto)
+    if (/<w:rPrDefault>\s*<w:rPr[^/>]*>/.test(xml)) {
+      return xml.replace(
+        /(<w:rPrDefault>\s*<w:rPr\b[^/>]*>)([\s\S]*?)(<\/w:rPr>)/,
+        (_m, open: string, body: string, close: string) =>
+          body.includes('<w:lang') ? open + body + close : open + body + LANG + close
+      );
+    }
+    // b) prazen ali manjkajoč rPr – vstavi celoten rPr z jezikom
+    return xml
+      .replace(/<w:rPrDefault\s*\/>/, `<w:rPrDefault><w:rPr>${LANG}</w:rPr></w:rPrDefault>`)
+      .replace(/<w:rPrDefault>\s*<w:rPr\s*\/>/, `<w:rPrDefault><w:rPr>${LANG}</w:rPr>`)
+      .replace(/<w:rPrDefault>(?!\s*<w:rPr)/, `<w:rPrDefault><w:rPr>${LANG}</w:rPr>`);
+  };
+
+  // document.xml + styles.xml + glave/noge
+  for (const path of Object.keys(zip.files)) {
+    if (!/^word\/(document|styles|header\d*|footer\d*)\.xml$/.test(path)) continue;
+    const file = zip.file(path);
+    if (!file) continue;
+    zip.file(path, nastaviPrivzetiJezik(preklopiLang(file.asText())));
+  }
+
+  // settings.xml: jezik teme + počisti "proofState", da Word ob odprtju znova preveri črkovanje
+  const settings = zip.file('word/settings.xml');
+  if (settings) {
+    const xml = settings
+      .asText()
+      .replace(/<w:themeFontLang\b[^>]*?\/>/, '<w:themeFontLang w:val="sl-SI"/>')
+      .replace(/<w:proofState\b[^>]*?\/>/, '');
+    zip.file('word/settings.xml', xml);
+  }
+}
+
 function buildFacultyAppendixXml(entries: WorkEntry[], isUL = false): string {
   // UL: prikaži polni naziv fakultete (npr. delovno "UL" → "Rektorat"). Za UP pusti delovno ime.
   const displayName = (s: string) => (isUL ? ulNazivZaPrikaz(s) : s);
@@ -486,13 +537,16 @@ export async function generateDocx(
     }
   }
 
-  // 7. Generiraj blob ŠELE PO renderju
+  // 7. Jezik dokumenta = slovenščina (slovenski črkovalnik ob odprtju)
+  nastaviJezikSlovenscina(outZip);
+
+  // 8. Generiraj blob ŠELE PO renderju
   const blob = outZip.generate({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  // 8. Shrani – ime: "{številka računa} {polno ime stranke}.docx"
+  // 9. Shrani – ime: "{številka računa} {polno ime stranke}.docx"
   const filename = (metadata.stevilkaRacuna || 'racun') + ' ' + (client.imeNaRacunu || '') + '.docx';
   saveAs(blob, filename);
 }
@@ -802,6 +856,10 @@ export async function generateUniversityInvoice(
     }
 
     renderedZip.file('word/document.xml', docXml);
+
+    // Jezik dokumenta = slovenščina (slovenski črkovalnik ob odprtju)
+    nastaviJezikSlovenscina(renderedZip);
+
     const blob = renderedZip.generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     // Ime: "{številka računa} {polno ime stranke}.docx"
     const filename = (metadata.stevilkaRacuna || 'racun') + ' ' + (client.imeNaRacunu || '') + '.docx';
