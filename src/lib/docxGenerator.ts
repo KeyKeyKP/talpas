@@ -622,7 +622,7 @@ export async function generateUniversityInvoice(
         ...emptyAmounts,
         ...(imaUre ? {
           kolicina: formatNum(f.urD),
-          enota: 'ur',
+          enota: 'ura',
           cena: eur(client.cenaDt),
           vrednostBrezDDV: eur(f.vrednostD),
           stopnjaDDV: '22',
@@ -687,7 +687,7 @@ export async function generateUniversityInvoice(
         ...emptyAmounts,
         ...(imaUre ? {
           kolicina: formatNum(urD),
-          enota: 'ur',
+          enota: 'ura',
           cena: eur(client.cenaDt),
           vrednostBrezDDV: eur(vrednost),
           stopnjaDDV: '22',
