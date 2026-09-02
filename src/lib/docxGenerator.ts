@@ -12,6 +12,45 @@ import {
   UNI_VZDRZEVANJE_OPIS_UP,
 } from '../config/constants';
 
+// --- Širine tabele v prilogi (stran 2+) --------------------------------------
+// A4 = 11906 DXA, margini L=R=1021 DXA (0,71" = 1,8 cm) → uporabna širina 9864 DXA = 17,4 cm.
+// Prej je bila tabela široka 11311 DXA z zamikom tblInd=-497 (levi rob 567 DXA IZVEN margine),
+// zato je desni rob segal skoraj do roba papirja in dokument ni bil primeren za tisk.
+// Zdaj: širina = točno uporabna širina, levi rob poravnan z margino → desni rob = levi rob.
+const APPENDIX_TABLE_W = 9864; // 17,4 cm
+// tblInd se meri do besedila celice, zato je za poravnavo z margino enak levi celični margini (70).
+const APPENDIX_TABLE_IND = 70;
+// Delo, Datum, Kontakt, Vrsta dela, Število ur, Opis, Opravil  (vsota = 9864)
+const APPENDIX_COLS = [1417, 1020, 1247, 1020, 567, 3402, 1191];
+// Stare širine iz predloge (template_racun.docx) – preslikamo jih na nove po renderju.
+const APPENDIX_COLS_TEMPLATE = [1870, 870, 1200, 1134, 574, 4387, 1276];
+
+// Zoži tabelo priloge iz predloge (standardne stranke in VIS) na A4-tisku prijazno širino.
+// Deluje na že renderiranem document.xml – obdela SAMO del za naslovom "Priloga ra…",
+// tabela računa na 1. strani ostane nedotaknjena.
+function fixAppendixTableWidth(appendixXml: string): string {
+  let xml = appendixXml
+    .replace(/<w:tblW w:w="11311" w:type="dxa"\/>/g, `<w:tblW w:w="${APPENDIX_TABLE_W}" w:type="dxa"/>`)
+    .replace(
+      /<w:tblInd w:w="-497" w:type="dxa"\/>/g,
+      `<w:tblInd w:w="${APPENDIX_TABLE_IND}" w:type="dxa"/>`
+    );
+  // Naslov priloge in prazna vrstica pod njim sta zamaknjena z tabelo (prej -567) → poravnaj z margino.
+  xml = xml.replace(/<w:ind w:left="-567"\/>/g, '<w:ind w:left="0"/>');
+  // Preslikaj širine stolpcev (gridCol + tcW). Stare vrednosti so med seboj različne,
+  // zato zadošča preslikava po vrednosti.
+  APPENDIX_COLS_TEMPLATE.forEach((oldW, i) => {
+    const newW = APPENDIX_COLS[i];
+    xml = xml
+      .replace(new RegExp(`<w:gridCol w:w="${oldW}"\\/>`, 'g'), `<w:gridCol w:w="${newW}"/>`)
+      .replace(
+        new RegExp(`<w:tcW w:w="${oldW}" w:type="dxa"\\/>`, 'g'),
+        `<w:tcW w:w="${newW}" w:type="dxa"/>`
+      );
+  });
+  return xml;
+}
+
 function eur(v: number) {
   return v.toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -149,20 +188,16 @@ function buildFacultyAppendixXml(entries: WorkEntry[], isUL = false): string {
   // Exact table properties from standard template appendix
   const tblPr =
     '<w:tblPr>' +
-    '<w:tblW w:w="11311" w:type="dxa"/>' +
-    '<w:tblInd w:w="-497" w:type="dxa"/>' +
+    `<w:tblW w:w="${APPENDIX_TABLE_W}" w:type="dxa"/>` +
+    `<w:tblInd w:w="${APPENDIX_TABLE_IND}" w:type="dxa"/>` +
     '<w:tblLayout w:type="fixed"/>' +
     '<w:tblCellMar><w:left w:w="70" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tblCellMar>' +
     '</w:tblPr>';
 
-  const tblGrid =
-    '<w:tblGrid>' +
-    '<w:gridCol w:w="1870"/><w:gridCol w:w="870"/><w:gridCol w:w="1200"/>' +
-    '<w:gridCol w:w="1134"/><w:gridCol w:w="574"/><w:gridCol w:w="4387"/>' +
-    '<w:gridCol w:w="1276"/>' +
-    '</w:tblGrid>';
+  const cols = APPENDIX_COLS;
 
-  const cols = [1870, 870, 1200, 1134, 574, 4387, 1276];
+  const tblGrid =
+    '<w:tblGrid>' + cols.map(w => `<w:gridCol w:w="${w}"/>`).join('') + '</w:tblGrid>';
   const F = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>';
 
   // Header cell: italic, 8pt (sz 16), top+bottom border, vAlign=bottom.
@@ -216,7 +251,7 @@ function buildFacultyAppendixXml(entries: WorkEntry[], isUL = false): string {
 
     // Naslov strani = SAMO ime fakultete (bold, 8pt = sz 16, enako kot tabela; isti zamik)
     const facRPr = `<w:rPr>${F}<w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>`;
-    const facPPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="-567" w:end="0"/>${facRPr}</w:pPr>`;
+    const facPPr = `<w:pPr><w:pStyle w:val="Normal"/><w:ind w:start="0" w:end="0"/>${facRPr}</w:pPr>`;
     xml += `<w:p>${facPPr}<w:r>${facRPr}<w:t>${xmlEsc(displayName(fakulteta))}</w:t></w:r></w:p>`;
 
     // Spacing paragraph (4pt, same as original)
@@ -523,16 +558,19 @@ export async function generateDocx(
       }
     }
     outZip.file('word/document.xml', docXml);
-  } else if (reactiveAppendixRows) {
-    // Vrstice priloge (stran 2+) naredi reactive: odstrani fiksno <w:trHeight> iz vrstic
-    // tabele priloge, da se višina prilagodi količini besedila (enako kot UP/UL priloge).
-    // Prilogo omeji na del za naslovom "Priloga ra…"; tabela računa (pred naslovom) ostane
-    // nedotaknjena.
-    let docXml = outZip.files['word/document.xml'].asText();
+  } else {
+    // Obdelava priloge (stran 2+). Prilogo omeji na del za naslovom "Priloga ra…";
+    // tabela računa (pred naslovom) ostane nedotaknjena.
+    const docXml = outZip.files['word/document.xml'].asText();
     const headIdx = docXml.indexOf('Priloga ra');
     if (headIdx !== -1) {
       const head = docXml.substring(0, headIdx);
-      const appendix = docXml.substring(headIdx).replace(/<w:trHeight\b[^>]*\/>/g, '');
+      let appendix = docXml.substring(headIdx);
+      // a) Širina tabele → 17,4 cm, simetrično med marginama (primerno za tisk na A4).
+      appendix = fixAppendixTableWidth(appendix);
+      // b) Vrstice naredi reactive: odstrani fiksno <w:trHeight>, da se višina prilagodi
+      //    količini besedila (enako kot UP/UL priloge).
+      if (reactiveAppendixRows) appendix = appendix.replace(/<w:trHeight\b[^>]*\/>/g, '');
       outZip.file('word/document.xml', head + appendix);
     }
   }
