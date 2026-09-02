@@ -34,6 +34,18 @@ const APPENDIX_COLS = [1500, 900, 1150, 1160, 640, 3314, 1200];
 // Stare širine iz predloge (template_racun.docx) – preslikamo jih na nove po renderju.
 const APPENDIX_COLS_TEMPLATE = [1870, 870, 1200, 1134, 574, 4387, 1276];
 
+// Začetek odstavka (<w:p>), ki vsebuje znak na položaju idx.
+// Nujno pri iskanju priloge prek besedila "Priloga ra…": indexOf zadene <w:t>, torej ŠELE ZA
+// <w:pPr> tega odstavka. Rezanje na tem mestu bi pustilo lastnosti naslova (npr. <w:ind>)
+// zunaj obdelanega dela.
+function paragraphStartBefore(xml: string, idx: number): number {
+  const paraOpen = /<w:p(?:>|\s)/g;
+  let paraStart = -1;
+  let m: RegExpExecArray | null;
+  while ((m = paraOpen.exec(xml)) !== null && m.index < idx) paraStart = m.index;
+  return paraStart;
+}
+
 // Zoži tabelo priloge iz predloge (standardne stranke in VIS) na A4-tisku prijazno širino.
 // Deluje na že renderiranem document.xml – obdela SAMO del za naslovom "Priloga ra…",
 // tabela računa na 1. strani ostane nedotaknjena.
@@ -560,23 +572,22 @@ export async function generateDocx(
     const headIdx = docXml.indexOf('Priloga ra');
     const sectStart = docXml.lastIndexOf('<w:sectPr');
     if (headIdx !== -1 && sectStart !== -1 && headIdx < sectStart) {
-      const paraOpen = /<w:p(?:>|\s)/g;
-      let paraStart = -1;
-      let m: RegExpExecArray | null;
-      while ((m = paraOpen.exec(docXml)) !== null && m.index < headIdx) paraStart = m.index;
+      const paraStart = paragraphStartBefore(docXml, headIdx);
       if (paraStart !== -1) {
         docXml = docXml.substring(0, paraStart) + docXml.substring(sectStart);
       }
     }
     outZip.file('word/document.xml', docXml);
   } else {
-    // Obdelava priloge (stran 2+). Prilogo omeji na del za naslovom "Priloga ra…";
+    // Obdelava priloge (stran 2+). Prilogo omeji na del od ZAČETKA odstavka z naslovom
+    // "Priloga ra…" (ne od besedila naslova, sicer <w:pPr> naslova ostane zunaj obdelave);
     // tabela računa (pred naslovom) ostane nedotaknjena.
     const docXml = outZip.files['word/document.xml'].asText();
     const headIdx = docXml.indexOf('Priloga ra');
-    if (headIdx !== -1) {
-      const head = docXml.substring(0, headIdx);
-      let appendix = docXml.substring(headIdx);
+    const paraStart = headIdx === -1 ? -1 : paragraphStartBefore(docXml, headIdx);
+    if (paraStart !== -1) {
+      const head = docXml.substring(0, paraStart);
+      let appendix = docXml.substring(paraStart);
       // a) Širina tabele → 17,4 cm, simetrično med marginama (primerno za tisk na A4).
       appendix = fixAppendixTableWidth(appendix);
       // b) Vrstice naredi reactive: odstrani fiksno <w:trHeight>, da se višina prilagodi
@@ -886,14 +897,8 @@ export async function generateUniversityInvoice(
     // Docxtemplater po renderju doda xml:space, zato NE iščemo '<w:t>Priloga ra', ampak samo besedilo,
     // začetek odstavka pa določimo z regexom (da ne zadanemo <w:pPr>).
     const appendixTextIdx = docXml.indexOf('Priloga ra');
-    let paraStart = -1;
-    if (appendixTextIdx !== -1) {
-      const paraOpen = /<w:p(?:>|\s)/g;
-      let m: RegExpExecArray | null;
-      while ((m = paraOpen.exec(docXml)) !== null && m.index < appendixTextIdx) {
-        paraStart = m.index;
-      }
-    }
+    const paraStart =
+      appendixTextIdx === -1 ? -1 : paragraphStartBefore(docXml, appendixTextIdx);
     const facultyXml = buildFacultyAppendixXml(sortedEntries, isUL);
     if (paraStart !== -1) {
       docXml = docXml.substring(0, paraStart) + facultyXml + '<w:p/>' + sectPr + '</w:body></w:document>';
