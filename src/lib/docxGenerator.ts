@@ -21,7 +21,16 @@ const APPENDIX_TABLE_W = 9864; // 17,4 cm
 // tblInd se meri do besedila celice, zato je za poravnavo z margino enak levi celični margini (70).
 const APPENDIX_TABLE_IND = 70;
 // Delo, Datum, Kontakt, Vrsta dela, Število ur, Opis, Opravil  (vsota = 9864)
-const APPENDIX_COLS = [1417, 1020, 1247, 1020, 567, 3402, 1191];
+//
+// Ozki stolpci NISO skalirani proporcionalno – njihova vsebina je fiksno besedilo, ki se
+// pri premajhni širini lomi. Izmerjeno v Calibri 8pt (+140 DXA celičnih margin) je najmanjša
+// še delujoča širina:
+//   "V=vzdrževanje"     1073  → Vrsta dela  1160  (rezerva 87)
+//   "Število"            570  → Število ur   640  (rezerva 70)
+//   "12.11.2026"         870  → Datum        900  (rezerva 30)
+//   "SKUPAJ za obračun" 1375  → Delo        1500  (rezerva 125)
+// Prilagodita se le prosto tekoča stolpca Delo in Opis, ki se tako ali tako prelamljata.
+const APPENDIX_COLS = [1500, 900, 1150, 1160, 640, 3314, 1200];
 // Stare širine iz predloge (template_racun.docx) – preslikamo jih na nove po renderju.
 const APPENDIX_COLS_TEMPLATE = [1870, 870, 1200, 1134, 574, 4387, 1276];
 
@@ -38,16 +47,18 @@ function fixAppendixTableWidth(appendixXml: string): string {
   // Naslov priloge in prazna vrstica pod njim sta zamaknjena z tabelo (prej -567) → poravnaj z margino.
   xml = xml.replace(/<w:ind w:left="-567"\/>/g, '<w:ind w:left="0"/>');
   // Preslikaj širine stolpcev (gridCol + tcW). Stare vrednosti so med seboj različne,
-  // zato zadošča preslikava po vrednosti.
-  APPENDIX_COLS_TEMPLATE.forEach((oldW, i) => {
-    const newW = APPENDIX_COLS[i];
-    xml = xml
-      .replace(new RegExp(`<w:gridCol w:w="${oldW}"\\/>`, 'g'), `<w:gridCol w:w="${newW}"/>`)
-      .replace(
-        new RegExp(`<w:tcW w:w="${oldW}" w:type="dxa"\\/>`, 'g'),
-        `<w:tcW w:w="${newW}" w:type="dxa"/>`
-      );
-  });
+  // zato zadošča preslikava po vrednosti. Zamenjava teče v ENEM prehodu – zaporedni
+  // .replace() klici bi lahko drugič zadeli vrednost, ki jo je vpisal prejšnji korak.
+  const widthMap = new Map<string, number>(
+    APPENDIX_COLS_TEMPLATE.map((oldW, i) => [String(oldW), APPENDIX_COLS[i]])
+  );
+  xml = xml.replace(
+    /<w:(gridCol|tcW) w:w="(\d+)"( w:type="dxa")?\/>/g,
+    (whole, tag: string, w: string, type?: string) => {
+      const newW = widthMap.get(w);
+      return newW === undefined ? whole : `<w:${tag} w:w="${newW}"${type ?? ''}/>`;
+    }
+  );
   return xml;
 }
 
