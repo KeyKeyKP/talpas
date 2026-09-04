@@ -74,6 +74,48 @@ function fixAppendixTableWidth(appendixXml: string): string {
   return xml;
 }
 
+// --- Ena sama vrstica "SKUPAJ za obračun" v prilogi (samo VIS) ----------------
+// Predloga template_racun.docx ima na koncu priloge DVE vrstici: "D tehnik" ({skupajUrDt})
+// in "D inženir" ({skupajUrDi}). VIS uporablja kategorije D/V/Dp, zato ločevanje na tehnika
+// in inženirja nima pomena – ostane naj ena vrstica s skupnim seštevkom D ur (kot pri UP/UL).
+const SKUPAJ_LABEL = 'SKUPAJ za obračun';
+// Indeksa stolpcev v vrstici priloge (isti vrstni red kot APPENDIX_COLS):
+// 0 Delo, 1 Datum, 2 Kontakt, 3 Vrsta dela, 4 Število ur, 5 Opis, 6 Opravil.
+const SKUPAJ_COL_VRSTA = 3;
+const SKUPAJ_COL_UR = 4;
+
+// Besedilo celice: prvi <w:t> dobi novo vrednost, morebitni nadaljnji se odstranijo
+// (oblikovanje run-a – bCs, 8pt – ostane nedotaknjeno).
+function setCellText(cell: string, text: string): string {
+  let prvi = true;
+  const out = cell.replace(/<w:t\b[^>]*>[\s\S]*?<\/w:t>/g, () => {
+    if (!prvi) return '';
+    prvi = false;
+    return `<w:t xml:space="preserve">${xmlEsc(text)}</w:t>`;
+  });
+  if (!prvi || text === '') return out;
+  // Celica brez besedilnega zapisa – dodaj run v prvi odstavek.
+  return out.replace('</w:p>', `<w:r><w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r></w:p>`);
+}
+
+// Obdrži SAMO prvo vrstico "SKUPAJ za obračun": izbriše oznako ("D tehnik") in vpiše
+// skupno število ur; vse nadaljnje take vrstice ("D inženir") odstrani.
+function enaSkupajVrstica(appendixXml: string, skupajUr: string): string {
+  let ohranjena = false;
+  return appendixXml.replace(/<w:tr\b[^>]*>[\s\S]*?<\/w:tr>/g, row => {
+    if (!row.includes(SKUPAJ_LABEL)) return row;
+    if (ohranjena) return '';
+    ohranjena = true;
+    let i = -1;
+    return row.replace(/<w:tc\b[^>]*>[\s\S]*?<\/w:tc>/g, cell => {
+      i++;
+      if (i === SKUPAJ_COL_VRSTA) return setCellText(cell, '');
+      if (i === SKUPAJ_COL_UR) return setCellText(cell, skupajUr);
+      return cell;
+    });
+  });
+}
+
 function eur(v: number) {
   return v.toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -333,7 +375,10 @@ export async function generateDocx(
   basePath = '/talpas',
   // Vrstice priloge naj bodo reactive (visoke toliko kot besedilo) — velja za
   // standardne stranke in VIS (UP/UL uporablja svojo funkcijo).
-  reactiveAppendixRows = true
+  reactiveAppendixRows = true,
+  // VIS: število ur za ENO vrstico "SKUPAJ za obračun" na koncu priloge.
+  // null (privzeto, standardne stranke) = obe vrstici iz predloge ("D tehnik" + "D inženir").
+  enoSkupajUr: number | null = null
 ): Promise<void> {
   // 1. Fetch template
   const response = await fetch(`${basePath}/assets/template_racun.docx`);
@@ -593,6 +638,8 @@ export async function generateDocx(
       // b) Vrstice naredi reactive: odstrani fiksno <w:trHeight>, da se višina prilagodi
       //    količini besedila (enako kot UP/UL priloge).
       if (reactiveAppendixRows) appendix = appendix.replace(/<w:trHeight\b[^>]*\/>/g, '');
+      // c) VIS: dve vrstici "SKUPAJ za obračun" (D tehnik / D inženir) zloži v eno samo.
+      if (enoSkupajUr !== null) appendix = enaSkupajVrstica(appendix, formatNum(enoSkupajUr));
       outZip.file('word/document.xml', head + appendix);
     }
   }
@@ -939,7 +986,10 @@ export async function generateVisInvoice(
     ...e,
     vrstaDela: e.vrstaDela === 'D' ? 'Dt' : e.vrstaDela,
   }));
+  // Skupaj za obračun = vse D ure (Dp in V se ne štejeta), enako kot pri UP/UL.
+  // Računa se iz izvirnih vnosov, PRED preslikavo D → Dt.
+  const skupajUrD = entries.reduce((s, e) => s + (e.vrstaDela === 'D' ? e.steviloUr : 0), 0);
   // VIS: vrstice priloge naj bodo reactive (visoke toliko kot besedilo), enako kot
-  // standardne stranke in UP/UL.
-  return generateDocx(mappedEntries, client, metadata, basePath, true);
+  // standardne stranke in UP/UL; na koncu priloge ENA vrstica "SKUPAJ za obračun".
+  return generateDocx(mappedEntries, client, metadata, basePath, true, skupajUrD);
 }
